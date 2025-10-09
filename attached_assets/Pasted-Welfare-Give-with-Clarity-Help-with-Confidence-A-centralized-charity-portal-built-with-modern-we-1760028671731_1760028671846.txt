@@ -1,0 +1,99 @@
+Welfare — Give with Clarity. Help with Confidence.
+A centralized charity portal built with modern web technologies to connect donors, volunteers, and beneficiaries through transparency, storytelling, and smart coordination.
+
+Date: 10 October 2025 Project Title: Welfare — Give with Clarity. Help with Confidence. Prepared for: Mr. Henok Course: Web Design & Development Prepared by: OZONE HIGH SCHOOL GRADE 11 A STUDENTS
+
+Students Name
+
+BEMNET SULEMAN
+
+BEZAWIT
+
+HAWI
+
+YIHUNIE TAREKEGN
+
+1. Introduction (Background)
+Charity is one of the most powerful forces for good in society — yet many charitable efforts suffer from poor coordination, lack of transparency, and limited digital presence. Donors often hesitate to give because they don’t know where their money goes. Volunteers struggle to find meaningful roles. People in need don’t know how to request help or share their stories.
+
+In a world that runs on digital trust, Welfare aims to solve this gap by creating a centralized charity portal that connects donors, volunteers, and beneficiaries with clarity and confidence. The platform will showcase real impact, simplify giving, and empower communities to act together.
+
+By developing Welfare, we aim to apply our web development skills using React for the frontend, Node.js and Python for backend logic, and PostgreSQL for secure data management. This project reflects our commitment to solving real-world problems with modern tools and thoughtful design.
+
+2. Statement of the Problem
+Many charitable organizations and community efforts fail to reach their full potential due to poor digital infrastructure. Donors are unsure where their money goes, volunteers lack clear coordination, and beneficiaries often remain invisible. Without a unified platform to manage donations, campaigns, feedback, and outreach, charity efforts become fragmented, inefficient, and hard to trust.
+
+There is an urgent need for a transparent, user-friendly charity portal that connects all stakeholders — donors, volunteers, and recipients — in one place, with real-time updates, verified campaigns, and measurable impact. A platform like Welfare can restore trust, improve coordination, and amplify the reach of charitable work.
+
+3. Objectives
+General Objective
+To design and develop a full-stack charity platform (Welfare) that enables transparent donations, volunteer coordination, beneficiary support, and campaign management using modern web technologies.
+
+Specific Objectives
+To create a responsive website accessible on computers and mobile devices
+
+To develop a donation tracking system with real-time impact visualization
+
+To build a campaign launcher for fundraisers with story-driven templates
+
+To implement a volunteer registration and skill-matching system
+
+To create a beneficiary request portal for aid submissions
+
+To build a transparency dashboard showing donation flow and campaign outcomes
+
+To develop a story wall for sharing real-life impact and testimonials
+
+To automate seasonal and emergency campaign alerts
+
+To allow local charities to register and launch their own campaigns
+
+To provide donor profiles with giving history and personalized recommendations
+
+4. Scope of the Project
+The Welfare platform will include:
+
+User registration and login system
+
+Donation impact visualizer and campaign progress bars
+
+Campaign creation and sharing tools
+
+Volunteer coordination hub with skill-based matching
+
+Beneficiary aid request form with verification
+
+Transparency dashboard for public accountability
+
+Story wall for emotional engagement and updates
+
+Seasonal and emergency campaign automation
+
+Local charity integration and training modules
+
+Donor profiles with giving history and optional public recognition
+
+Out of Scope: Advanced financial integrations (e.g. payment gateways), blockchain systems, and mobile app versions will not be included in the first release.
+
+5. Methods (Project Approach)
+The project will be executed in structured phases using a full-stack development workflow:
+
+Planning and Requirement Analysis Define project goals, identify user roles (donor, volunteer, beneficiary), and finalize core features.
+
+Design Phase Create wireframes and layout designs using Figma or sketches. Focus on clarity, emotional engagement, and ease of use.
+
+Development Phase
+
+Frontend: React.js for dynamic user interfaces
+
+Backend: Node.js and Python for server-side logic and API handling
+
+Database: PostgreSQL for secure and scalable data storage
+
+Implement RESTful APIs for communication between frontend and backend
+
+Testing Phase Test all functionalities (donation flow, campaign creation, login, feedback) across devices and browsers. Use unit and integration tests to ensure reliability.
+
+Deployment Phase Host the website using platforms like Render, Vercel, or Heroku. Ensure secure access and performance optimization.
+
+Maintenance Phase Monitor core functionalities, fix bugs, and gather user feedback for future improvements.
