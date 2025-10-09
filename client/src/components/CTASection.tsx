@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Heart, HandHeart } from "lucide-react";
+import { Link } from "wouter";
 
 export function CTASection() {
   return (
@@ -14,23 +15,27 @@ export function CTASection() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button 
-              size="lg" 
-              className="bg-accent hover:bg-accent text-accent-foreground border border-accent-border text-lg px-8 py-6 transition-transform hover:scale-105"
-              data-testid="button-start-donating"
-            >
-              <Heart className="h-5 w-5 mr-2 fill-current" />
-              Start Donating
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              className="text-lg px-8 py-6 transition-transform hover:scale-105"
-              data-testid="button-become-volunteer"
-            >
-              <HandHeart className="h-5 w-5 mr-2" />
-              Become a Volunteer
-            </Button>
+            <Link href="/donate">
+              <Button 
+                size="lg" 
+                className="bg-accent hover:bg-accent text-accent-foreground border border-accent-border text-lg px-8 py-6 transition-transform hover:scale-105"
+                data-testid="button-start-donating"
+              >
+                <Heart className="h-5 w-5 mr-2 fill-current" />
+                Start Donating
+              </Button>
+            </Link>
+            <Link href="/volunteer">
+              <Button 
+                size="lg" 
+                variant="outline"
+                className="text-lg px-8 py-6 transition-transform hover:scale-105"
+                data-testid="button-become-volunteer"
+              >
+                <HandHeart className="h-5 w-5 mr-2" />
+                Become a Volunteer
+              </Button>
+            </Link>
           </div>
 
           <p className="text-sm text-muted-foreground mt-6">

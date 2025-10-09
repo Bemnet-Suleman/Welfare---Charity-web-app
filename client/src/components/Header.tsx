@@ -33,13 +33,15 @@ export function Header() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button 
-              className="hidden md:flex bg-accent hover:bg-accent text-accent-foreground border border-accent-border" 
-              data-testid="button-donate-now"
-            >
-              <Heart className="h-4 w-4 mr-2 fill-current" />
-              Donate Now
-            </Button>
+            <Link href="/donate">
+              <Button 
+                className="hidden md:flex bg-accent hover:bg-accent text-accent-foreground border border-accent-border" 
+                data-testid="button-donate-now"
+              >
+                <Heart className="h-4 w-4 mr-2 fill-current" />
+                Donate Now
+              </Button>
+            </Link>
             <Button
               variant="ghost"
               size="icon"
@@ -74,13 +76,15 @@ export function Header() {
                 Transparency
               </Button>
             </Link>
-            <Button 
-              className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border" 
-              data-testid="button-donate-now-mobile"
-            >
-              <Heart className="h-4 w-4 mr-2 fill-current" />
-              Donate Now
-            </Button>
+            <Link href="/donate">
+              <Button 
+                className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border" 
+                data-testid="button-donate-now-mobile"
+              >
+                <Heart className="h-4 w-4 mr-2 fill-current" />
+                Donate Now
+              </Button>
+            </Link>
           </nav>
         )}
       </div>

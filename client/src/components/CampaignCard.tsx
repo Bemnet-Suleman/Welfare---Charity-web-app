@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CheckCircle2, Clock, Heart } from "lucide-react";
+import { Link } from "wouter";
 
 export interface CampaignCardProps {
   id: string;
@@ -87,16 +88,20 @@ export function CampaignCard({
         </div>
 
         <div className="flex gap-2">
-          <Button 
-            className="flex-1 bg-accent hover:bg-accent text-accent-foreground border border-accent-border"
-            data-testid="button-donate-campaign"
-          >
-            <Heart className="h-4 w-4 mr-2 fill-current" />
-            Donate
-          </Button>
-          <Button variant="outline" className="flex-1" data-testid="button-learn-more">
-            Learn More
-          </Button>
+          <Link href="/donate">
+            <Button 
+              className="flex-1 bg-accent hover:bg-accent text-accent-foreground border border-accent-border"
+              data-testid="button-donate-campaign"
+            >
+              <Heart className="h-4 w-4 mr-2 fill-current" />
+              Donate
+            </Button>
+          </Link>
+          <Link href="/campaign/1">
+            <Button variant="outline" className="flex-1" data-testid="button-learn-more">
+              Learn More
+            </Button>
+          </Link>
         </div>
       </div>
     </Card>

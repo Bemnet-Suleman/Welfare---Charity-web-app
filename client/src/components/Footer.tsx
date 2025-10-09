@@ -34,10 +34,10 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">For Donors</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/campaigns"><a className="hover:text-foreground transition-colors">Browse Campaigns</a></Link></li>
-              <li><Link href="/impact"><a className="hover:text-foreground transition-colors">Track Impact</a></Link></li>
+              <li><Link href="/"><a className="hover:text-foreground transition-colors">Browse Campaigns</a></Link></li>
+              <li><Link href="/donate"><a className="hover:text-foreground transition-colors">Make a Donation</a></Link></li>
               <li><Link href="/transparency"><a className="hover:text-foreground transition-colors">Transparency</a></Link></li>
-              <li><Link href="/donor-profile"><a className="hover:text-foreground transition-colors">My Donations</a></Link></li>
+              <li><Link href="/profile"><a className="hover:text-foreground transition-colors">My Donations</a></Link></li>
             </ul>
           </div>
 
@@ -47,17 +47,17 @@ export function Footer() {
               <li><Link href="/volunteer"><a className="hover:text-foreground transition-colors">Volunteer</a></Link></li>
               <li><Link href="/create-campaign"><a className="hover:text-foreground transition-colors">Start a Campaign</a></Link></li>
               <li><Link href="/request-aid"><a className="hover:text-foreground transition-colors">Request Aid</a></Link></li>
-              <li><Link href="/partner"><a className="hover:text-foreground transition-colors">Partner with Us</a></Link></li>
+              <li><Link href="/register"><a className="hover:text-foreground transition-colors">Join Welfare</a></Link></li>
             </ul>
           </div>
 
           <div>
             <h3 className="font-semibold mb-4">About</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/about"><a className="hover:text-foreground transition-colors">Our Mission</a></Link></li>
-              <li><Link href="/team"><a className="hover:text-foreground transition-colors">Team</a></Link></li>
-              <li><Link href="/contact"><a className="hover:text-foreground transition-colors">Contact</a></Link></li>
-              <li><Link href="/faq"><a className="hover:text-foreground transition-colors">FAQ</a></Link></li>
+              <li><Link href="/stories"><a className="hover:text-foreground transition-colors">Impact Stories</a></Link></li>
+              <li><Link href="/login"><a className="hover:text-foreground transition-colors">Sign In</a></Link></li>
+              <li><Link href="/register"><a className="hover:text-foreground transition-colors">Create Account</a></Link></li>
+              <li><a href="#" className="hover:text-foreground transition-colors">FAQ</a></li>
             </ul>
           </div>
         </div>
@@ -65,8 +65,8 @@ export function Footer() {
         <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <p>© 2025 Welfare. All rights reserved.</p>
           <div className="flex gap-6">
-            <Link href="/privacy"><a className="hover:text-foreground transition-colors">Privacy Policy</a></Link>
-            <Link href="/terms"><a className="hover:text-foreground transition-colors">Terms of Service</a></Link>
+            <a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-foreground transition-colors">Terms of Service</a>
           </div>
         </div>
       </div>

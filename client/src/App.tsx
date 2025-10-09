@@ -9,6 +9,13 @@ import Home from "@/pages/Home";
 import Volunteer from "@/pages/Volunteer";
 import Stories from "@/pages/Stories";
 import Transparency from "@/pages/Transparency";
+import Donate from "@/pages/Donate";
+import Register from "@/pages/Register";
+import Login from "@/pages/Login";
+import CreateCampaign from "@/pages/CreateCampaign";
+import RequestAid from "@/pages/RequestAid";
+import DonorProfile from "@/pages/DonorProfile";
+import CampaignDetail from "@/pages/CampaignDetail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -18,6 +25,13 @@ function Router() {
       <Route path="/volunteer" component={Volunteer} />
       <Route path="/stories" component={Stories} />
       <Route path="/transparency" component={Transparency} />
+      <Route path="/donate" component={Donate} />
+      <Route path="/register" component={Register} />
+      <Route path="/login" component={Login} />
+      <Route path="/create-campaign" component={CreateCampaign} />
+      <Route path="/request-aid" component={RequestAid} />
+      <Route path="/profile" component={DonorProfile} />
+      <Route path="/campaign/:id" component={CampaignDetail} />
       <Route component={NotFound} />
     </Switch>
   );

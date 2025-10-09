@@ -1,6 +1,7 @@
 import { Heart, TrendingUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 
 export function HeroSection() {
   const [stats, setStats] = useState({ donations: 0, lives: 0, volunteers: 0 });
@@ -44,22 +45,26 @@ export function HeroSection() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-          <Button 
-            size="lg" 
-            className="bg-accent hover:bg-accent text-accent-foreground border border-accent-border text-lg px-8 py-6 transition-transform hover:scale-105"
-            data-testid="button-start-giving"
-          >
-            <Heart className="h-5 w-5 mr-2 fill-current" />
-            Start Giving
-          </Button>
-          <Button 
-            size="lg" 
-            variant="outline" 
-            className="backdrop-blur-sm bg-white/10 border-white/20 text-white hover:bg-white/20 text-lg px-8 py-6 transition-transform hover:scale-105"
-            data-testid="button-explore-campaigns"
-          >
-            Explore Campaigns
-          </Button>
+          <Link href="/donate">
+            <Button 
+              size="lg" 
+              className="bg-accent hover:bg-accent text-accent-foreground border border-accent-border text-lg px-8 py-6 transition-transform hover:scale-105"
+              data-testid="button-start-giving"
+            >
+              <Heart className="h-5 w-5 mr-2 fill-current" />
+              Start Giving
+            </Button>
+          </Link>
+          <Link href="/">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="backdrop-blur-sm bg-white/10 border-white/20 text-white hover:bg-white/20 text-lg px-8 py-6 transition-transform hover:scale-105"
+              data-testid="button-explore-campaigns"
+            >
+              Explore Campaigns
+            </Button>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
