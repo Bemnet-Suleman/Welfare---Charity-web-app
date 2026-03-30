@@ -1,10 +1,122 @@
+import { readFileSync } from "fs";
+import { join } from "path";
+
+// Load environment variables manually BEFORE any other imports
+try {
+  const envPath = join(process.cwd(), ".env");
+  const envContent = readFileSync(envPath, "utf8");
+  const envLines = envContent.split("\n");
+
+  for (const line of envLines) {
+    const [key, ...valueParts] = line.split("=");
+    if (key && valueParts.length > 0) {
+      const value = valueParts.join("=").trim();
+      if (value.startsWith("\"") && value.endsWith("\"")) {
+        process.env[key.trim()] = value.slice(1, -1);
+      } else {
+        process.env[key.trim()] = value;
+      }
+    }
+  }
+  console.log("Environment variables loaded from .env file");
+} catch (error) {
+  console.log("Could not load .env file:", (error as any).message);
+}
+
+// Ensure NODE_ENV is set so Express uses the right mode (development vs production)
+process.env.NODE_ENV = process.env.NODE_ENV || "development";
+console.log("NODE_ENV:", process.env.NODE_ENV);
+
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
+import session from "express-session";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import ConnectPgSimple from "connect-pg-simple";
+import bcrypt from "bcryptjs";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { storage } from "./storage";
+
+console.log("Starting server...");
+console.log("DATABASE_URL:", process.env.DATABASE_URL ? "Set" : "Not set");
 
 const app = express();
+console.log("Express app created");
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+);
+console.log("CORS middleware added");
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+console.log("Body parsing middleware added");
+
+// Session setup
+const PgSession = ConnectPgSimple(session);
+app.use(
+  session({
+    store: new PgSession({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || "welfare-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false, // Set to true in production with HTTPS
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  }),
+);
+console.log("Session middleware added");
+
+// Passport setup
+app.use(passport.initialize());
+app.use(passport.session());
+console.log("Passport middleware added");
+
+passport.use(
+  new LocalStrategy(
+    {
+      usernameField: "email",
+    },
+    async (email, password, done) => {
+      try {
+        const user = await storage.getUserByEmail(email);
+        if (!user) {
+          return done(null, false, { message: "Invalid email or password" });
+        }
+        // Compare hashed password
+        const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) {
+          return done(null, false, { message: "Invalid email or password" });
+        }
+        return done(null, user);
+      } catch (error) {
+        return done(error);
+      }
+    },
+  ),
+);
+
+passport.serializeUser((user: any, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id: string, done) => {
+  try {
+    const user = await storage.getUser(id);
+    done(null, user);
+  } catch (error) {
+    done(error);
+  }
+});
+console.log("Passport strategies configured");
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -37,7 +149,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  console.log("Registering routes...");
   const server = await registerRoutes(app);
+  console.log("Routes registered");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -47,25 +161,38 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  // Import or serve the client app depending on the environment.
+  // During local development we use Vite middleware to enable HMR.
+  // In production we serve the compiled build output.
+  if (process.env.NODE_ENV === "development") {
+    console.log("Setting up Vite for development...");
     await setupVite(app, server);
+    console.log("Vite setup complete");
   } else {
-    serveStatic(app);
+    try {
+      serveStatic(app);
+    } catch (err) {
+      console.warn(
+        "Could not serve static build (likely not built yet). Falling back to Vite middleware.",
+        err,
+      );
+      await setupVite(app, server);
+      console.log("Vite setup complete (fallback)");
+    }
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  const port = parseInt(process.env.PORT || "5000", 10);
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+    },
+    () => {
+      log(`serving on port ${port}`);
+    },
+  );
 })();

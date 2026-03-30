@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CheckCircle2, Clock, Heart } from "lucide-react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 
 export interface CampaignCardProps {
   id: string;
@@ -15,15 +16,11 @@ export interface CampaignCardProps {
   goalAmount: number;
   raisedAmount: number;
   daysLeft: number;
-  organizer: {
-    name: string;
-    avatar?: string;
-    verified: boolean;
-  };
   urgent?: boolean;
 }
 
 export function CampaignCard({
+  id,
   title,
   description,
   image,
@@ -31,10 +28,10 @@ export function CampaignCard({
   goalAmount,
   raisedAmount,
   daysLeft,
-  organizer,
   urgent = false,
 }: CampaignCardProps) {
   const progress = (raisedAmount / goalAmount) * 100;
+  const { t } = useTranslation();
 
   return (
     <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group">
@@ -48,18 +45,8 @@ export function CampaignCard({
           <Badge className="bg-card border-card-border text-card-foreground">{category}</Badge>
           {urgent && (
             <Badge className="bg-destructive text-destructive-foreground animate-pulse">
-              Urgent
+              {t("Urgent")}
             </Badge>
-          )}
-        </div>
-        <div className="absolute bottom-4 right-4 flex items-center gap-2 backdrop-blur-sm bg-background/80 rounded-full px-3 py-1.5">
-          <Avatar className="h-6 w-6 border-2 border-background">
-            <AvatarImage src={organizer.avatar} />
-            <AvatarFallback>{organizer.name[0]}</AvatarFallback>
-          </Avatar>
-          <span className="text-sm font-medium">{organizer.name}</span>
-          {organizer.verified && (
-            <CheckCircle2 className="h-4 w-4 text-secondary" />
           )}
         </div>
       </div>
@@ -75,14 +62,14 @@ export function CampaignCard({
             <span className="font-semibold font-['Space_Grotesk']" data-testid="campaign-raised">
               ${raisedAmount.toLocaleString()}
             </span>
-            <span className="text-muted-foreground">of ${goalAmount.toLocaleString()}</span>
+            <span className="text-muted-foreground">{t("of")} ${goalAmount.toLocaleString()}</span>
           </div>
           <Progress value={progress} className="h-2" />
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-secondary">{progress.toFixed(0)}% funded</span>
+            <span className="font-medium text-secondary">{progress.toFixed(0)}{t("% funded")}</span>
             <div className="flex items-center gap-1 text-muted-foreground">
               <Clock className="h-4 w-4" />
-              <span>{daysLeft} days left</span>
+              <span>{daysLeft} {t("days left")}</span>
             </div>
           </div>
         </div>
@@ -94,12 +81,12 @@ export function CampaignCard({
               data-testid="button-donate-campaign"
             >
               <Heart className="h-4 w-4 mr-2 fill-current" />
-              Donate
+              {t("Donate")}
             </Button>
           </Link>
-          <Link href="/campaign/1">
+          <Link href={`/campaign/${id}`}>
             <Button variant="outline" className="flex-1" data-testid="button-learn-more">
-              Learn More
+              {t("Learn More")}
             </Button>
           </Link>
         </div>

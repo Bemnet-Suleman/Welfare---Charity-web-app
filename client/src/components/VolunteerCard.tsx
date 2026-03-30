@@ -13,6 +13,7 @@ export interface VolunteerCardProps {
   skills: string[];
   volunteers: number;
   spotsLeft: number;
+  onApply?: () => void;
 }
 
 export function VolunteerCard({
@@ -24,6 +25,7 @@ export function VolunteerCard({
   skills,
   volunteers,
   spotsLeft,
+  onApply,
 }: VolunteerCardProps) {
   return (
     <Card className="p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
@@ -62,6 +64,7 @@ export function VolunteerCard({
 
         <Button 
           className="w-full bg-primary hover:bg-primary text-primary-foreground border border-primary-border"
+          onClick={onApply}
           data-testid="button-apply-volunteer"
         >
           Apply Now

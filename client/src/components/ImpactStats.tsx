@@ -1,35 +1,50 @@
 import { Card } from "@/components/ui/card";
 import { TrendingUp, Heart, Users, Target } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useTranslation } from "react-i18next";
+
+interface Stats {
+  totalRaised: number;
+  livesImpacted: number;
+  activeVolunteers: number;
+  goalsAchieved: number;
+}
 
 export function ImpactStats() {
-  //todo: remove mock functionality
-  const stats = [
+  const { t } = useTranslation();
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["/api/stats"],
+    queryFn: () => apiRequest("GET", "/api/stats").then(res => res.json()),
+  });
+
+  const statItems = [
     {
       icon: TrendingUp,
-      value: "$2.5M",
-      label: "Total Raised",
-      change: "+23% this month",
+      value: stats ? `$${(stats.totalRaised / 1000000).toFixed(1)}M` : "$2.5M",
+      label: t("Total Raised"),
+      change: t("+23% this month"),
       color: "text-chart-1",
     },
     {
       icon: Heart,
-      value: "45K",
-      label: "Lives Impacted",
-      change: "+15% this month",
+      value: stats ? `${(stats.livesImpacted / 1000).toFixed(0)}K` : "45K",
+      label: t("Lives Impacted"),
+      change: t("+15% this month"),
       color: "text-chart-3",
     },
     {
       icon: Users,
-      value: "5.2K",
-      label: "Active Volunteers",
-      change: "+8% this month",
+      value: stats ? `${(stats.activeVolunteers / 1000).toFixed(1)}K` : "5.2K",
+      label: t("Active Volunteers"),
+      change: t("+8% this month"),
       color: "text-chart-2",
     },
     {
       icon: Target,
-      value: "89%",
-      label: "Goals Achieved",
-      change: "+5% this month",
+      value: stats ? `${stats.goalsAchieved}%` : "89%",
+      label: t("Goals Achieved"),
+      change: t("+5% this month"),
       color: "text-chart-4",
     },
   ];
@@ -39,15 +54,15 @@ export function ImpactStats() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 font-['Poppins']">
-            Our Impact in Numbers
+            {t("Our Impact in Numbers")}
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Track the real-time impact of our community's generosity and compassion
+            {t("Track the real-time impact of our community's generosity and compassion")}
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, index) => {
+          {statItems.map((stat, index) => {
             const Icon = stat.icon;
             return (
               <Card 

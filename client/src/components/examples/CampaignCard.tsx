@@ -12,11 +12,6 @@ export default function CampaignCardExample() {
         goalAmount={50000}
         raisedAmount={42500}
         daysLeft={8}
-        organizer={{
-          name: "Sarah Johnson",
-          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
-          verified: true
-        }}
         urgent={true}
       />
     </div>

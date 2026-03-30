@@ -6,15 +6,67 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Heart } from "lucide-react";
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
+
+const registerSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string().min(1, "Please confirm your password"),
+  userType: z.enum(["donor", "volunteer", "beneficiary", "organization"]),
+  agreedToTerms: z.boolean().refine(val => val === true, "You must agree to the terms"),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function Register() {
+  const { t } = useTranslation();
   const [userType, setUserType] = useState("donor");
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  const handleRegister = () => {
-    console.log("Registration submitted", { userType });
-    //todo: implement registration logic
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      userType: "donor",
+      agreedToTerms: false,
+    },
+  });
+
+  const agreedToTerms = watch("agreedToTerms");
+
+  const onSubmit = async (data: RegisterForm) => {
+    try {
+      const role = data.userType === "organization" ? "organizer" : data.userType;
+      await apiRequest("POST", "/api/auth/register", {
+        username: data.email, // use email as username for simplicity
+        fullName: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        password: data.password,
+        role: role,
+      });
+      toast({
+      title: t("Registration Successful"),
+      description: t("Welcome to Welfare! Please sign in to continue."),
+      });
+      setLocation("/login");
+    } catch (error: any) {
+      toast({
+        title: t("Registration Failed"),
+        description: error.message || t("Failed to create account"),
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -23,72 +75,112 @@ export default function Register() {
         <div className="text-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <Heart className="h-12 w-12 text-accent fill-accent mx-auto mb-4" />
           <h1 className="text-3xl md:text-4xl font-bold mb-2 font-['Poppins']">
-            Join Welfare
+            {t("Join Welfare")}
           </h1>
-          <p className="text-muted-foreground">Create your account and start making a difference</p>
+          <p className="text-muted-foreground">{t("Create your account and start making a difference")}</p>
         </div>
 
-        <Card className="p-8">
-          <div className="space-y-6">
+        <Card className="p-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
-              <Label className="text-lg font-semibold mb-4 block">I want to:</Label>
-              <RadioGroup value={userType} onValueChange={setUserType}>
+              <Label className="text-lg font-semibold mb-4 block">{t("I want to:")}</Label>
+              <RadioGroup 
+                value={userType} 
+                onValueChange={(value) => {
+                  setUserType(value);
+                  setValue("userType", value as any);
+                }}
+              >
                 <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer">
                   <RadioGroupItem value="donor" id="donor" data-testid="radio-donor" />
                   <Label htmlFor="donor" className="flex-1 cursor-pointer">
-                    <p className="font-semibold">Donate to Causes</p>
-                    <p className="text-sm text-muted-foreground">Support campaigns and track your impact</p>
+                    <p className="font-semibold">{t("Donate to Causes")}</p>
+                    <p className="text-sm text-muted-foreground">{t("Support campaigns and track your impact")}</p>
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer">
                   <RadioGroupItem value="volunteer" id="volunteer" data-testid="radio-volunteer" />
                   <Label htmlFor="volunteer" className="flex-1 cursor-pointer">
-                    <p className="font-semibold">Volunteer My Time</p>
-                    <p className="text-sm text-muted-foreground">Find opportunities to help in your community</p>
+                    <p className="font-semibold">{t("Volunteer My Time")}</p>
+                    <p className="text-sm text-muted-foreground">{t("Find opportunities to help in your community")}</p>
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer">
                   <RadioGroupItem value="beneficiary" id="beneficiary" data-testid="radio-beneficiary" />
                   <Label htmlFor="beneficiary" className="flex-1 cursor-pointer">
-                    <p className="font-semibold">Request Assistance</p>
-                    <p className="text-sm text-muted-foreground">Submit aid requests for yourself or your community</p>
+                    <p className="font-semibold">{t("Request Assistance")}</p>
+                    <p className="text-sm text-muted-foreground">{t("Submit aid requests for yourself or your community")}</p>
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer">
                   <RadioGroupItem value="organization" id="organization" data-testid="radio-organization" />
                   <Label htmlFor="organization" className="flex-1 cursor-pointer">
-                    <p className="font-semibold">Create Campaigns</p>
-                    <p className="text-sm text-muted-foreground">Start fundraising for your organization or cause</p>
+                    <p className="font-semibold">{t("Create Campaigns")}</p>
+                    <p className="text-sm text-muted-foreground">{t("Launch fundraising campaigns for your organization")}</p>
                   </Label>
                 </div>
               </RadioGroup>
+              {errors.userType && <p className="text-red-500 text-sm mt-1">{errors.userType.message}</p>}
             </div>
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="John" data-testid="input-first-name" />
+                  <Input 
+                    id="firstName" 
+                    placeholder="John" 
+                    {...register("firstName")}
+                    data-testid="input-first-name" 
+                  />
+                  {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName.message}</p>}
                 </div>
                 <div>
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Doe" data-testid="input-last-name" />
+                  <Input 
+                    id="lastName" 
+                    placeholder="Doe" 
+                    {...register("lastName")}
+                    data-testid="input-last-name" 
+                  />
+                  {errors.lastName && <p className="text-red-500 text-sm mt-1">{errors.lastName.message}</p>}
                 </div>
               </div>
 
               <div>
                 <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" placeholder="john@example.com" data-testid="input-email" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="john@example.com" 
+                  {...register("email")}
+                  data-testid="input-email" 
+                />
+                {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
               </div>
 
               <div>
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" placeholder="••••••••" data-testid="input-password" />
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  {...register("password")}
+                  data-testid="input-password" 
+                />
+                {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
               </div>
 
               <div>
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input id="confirmPassword" type="password" placeholder="••••••••" data-testid="input-confirm-password" />
+                <Input 
+                  id="confirmPassword" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  {...register("confirmPassword")}
+                  data-testid="input-confirm-password" 
+                />
+                {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</p>}
               </div>
             </div>
 
@@ -96,22 +188,23 @@ export default function Register() {
               <Checkbox 
                 id="terms" 
                 checked={agreedToTerms}
-                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+                onCheckedChange={(checked) => setValue("agreedToTerms", checked as boolean)}
                 data-testid="checkbox-terms"
               />
               <Label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer">
                 I agree to the <a href="/terms" className="text-primary hover:underline">Terms of Service</a> and <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
               </Label>
             </div>
+            {errors.agreedToTerms && <p className="text-red-500 text-sm mt-1">{errors.agreedToTerms.message}</p>}
 
             <Button 
+              type="submit"
               size="lg" 
               className="w-full bg-primary hover:bg-primary text-primary-foreground border border-primary-border"
-              onClick={handleRegister}
-              disabled={!agreedToTerms}
+              disabled={isSubmitting}
               data-testid="button-register"
             >
-              Create Account
+              {isSubmitting ? "Creating Account..." : "Create Account"}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
@@ -120,7 +213,7 @@ export default function Register() {
                 <a className="text-primary hover:underline font-medium">Sign in</a>
               </Link>
             </p>
-          </div>
+          </form>
         </Card>
       </div>
     </div>

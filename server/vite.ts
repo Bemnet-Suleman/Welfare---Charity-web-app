@@ -26,19 +26,26 @@ export async function setupVite(app: Express, server: Server) {
     allowedHosts: true as const,
   };
 
-  const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
-    customLogger: {
-      ...viteLogger,
-      error: (msg, options) => {
-        viteLogger.error(msg, options);
-        process.exit(1);
+  let vite;
+  try {
+    vite = await createViteServer({
+      ...viteConfig,
+      configFile: false,
+      customLogger: {
+        ...viteLogger,
+        error: (msg, options) => {
+          // Log Vite errors without forcing the Node process to exit.
+          // This helps diagnose issues during startup.
+          viteLogger.error(msg, options);
+        },
       },
-    },
-    server: serverOptions,
-    appType: "custom",
-  });
+      server: serverOptions,
+      appType: "custom",
+    });
+  } catch (error) {
+    viteLogger.error("Failed to start Vite server", error as any);
+    throw error;
+  }
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {

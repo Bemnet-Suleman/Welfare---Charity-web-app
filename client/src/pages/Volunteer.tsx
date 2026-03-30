@@ -4,80 +4,61 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Filter } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Volunteer() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const { toast } = useToast();
 
-  //todo: remove mock functionality
-  const opportunities: VolunteerCardProps[] = [
-    {
-      id: "1",
-      title: "Medical Outreach Coordinator",
-      organization: "Healthcare for All",
-      description: "Coordinate mobile health clinics and assist in providing basic healthcare services to underserved communities.",
-      location: "Addis Ababa & Surrounding Areas",
-      timeCommitment: "4-6 hours/week",
-      skills: ["Healthcare", "Organization", "Communication"],
-      volunteers: 8,
-      spotsLeft: 4,
-    },
-    {
-      id: "2",
-      title: "Education Mentor",
-      organization: "Learn & Grow Foundation",
-      description: "Provide one-on-one tutoring and mentorship to students struggling with their studies. Help shape future leaders.",
-      location: "Remote & On-site",
-      timeCommitment: "3-4 hours/week",
-      skills: ["Teaching", "Patience", "Subject Expertise"],
-      volunteers: 15,
-      spotsLeft: 5,
-    },
-    {
-      id: "3",
-      title: "Community Kitchen Assistant",
-      organization: "Feed the Hungry",
-      description: "Help prepare and serve meals to families facing food insecurity. Make an immediate impact in your community.",
-      location: "Dire Dawa, Ethiopia",
-      timeCommitment: "2-3 hours/week",
-      skills: ["Cooking", "Teamwork", "Compassion"],
-      volunteers: 20,
-      spotsLeft: 10,
-    },
-    {
-      id: "4",
-      title: "Youth Sports Coach",
-      organization: "Active Kids Initiative",
-      description: "Lead sports activities and coaching sessions for children in underserved areas. Promote health and teamwork.",
-      location: "Bahir Dar, Ethiopia",
-      timeCommitment: "5-6 hours/week",
-      skills: ["Sports", "Leadership", "Youth Development"],
-      volunteers: 6,
-      spotsLeft: 2,
-    },
-    {
-      id: "5",
-      title: "Tech Skills Trainer",
-      organization: "Digital Literacy Foundation",
-      description: "Teach basic computer and internet skills to adults seeking employment opportunities in the digital age.",
-      location: "Remote",
-      timeCommitment: "2-4 hours/week",
-      skills: ["Technology", "Teaching", "Patience"],
-      volunteers: 12,
-      spotsLeft: 8,
-    },
-    {
-      id: "6",
-      title: "Environmental Conservation Volunteer",
-      organization: "Green Ethiopia",
-      description: "Participate in tree planting, waste management, and environmental awareness campaigns.",
-      location: "Various Locations",
-      timeCommitment: "3-5 hours/week",
-      skills: ["Environmental Science", "Outdoor Work", "Community Engagement"],
-      volunteers: 18,
-      spotsLeft: 12,
-    },
-  ];
+  const { data: campaigns, isLoading, error } = useQuery({
+    queryKey: ["/api/campaigns", searchQuery, categoryFilter],
+    queryFn: () =>
+      apiRequest("GET", "/api/campaigns" +
+        (searchQuery || categoryFilter !== "all"
+          ? `?search=${encodeURIComponent(searchQuery)}&category=${encodeURIComponent(categoryFilter)}`
+          : ""))
+        .then((r) => r.json()),
+  });
+
+  const handleApply = async (campaignId: string) => {
+    try {
+      await apiRequest("POST", "/api/volunteers", {
+        userId: null, // anonymous
+        campaignId,
+        skills: [],
+        availability: "",
+        experience: "",
+        status: "pending",
+      });
+      toast({
+        title: "Application Submitted",
+        description: "Your volunteer application has been submitted successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Application Failed",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const opportunities: VolunteerCardProps[] =
+    (campaigns || []).map((c: any) => ({
+      id: c.id,
+      title: c.title,
+      organization: c.organizer?.name || "Community Organization",
+      description: c.description,
+      location: c.location || "",
+      timeCommitment: "", // not available
+      skills: [],
+      volunteers: 0,
+      spotsLeft: 0,
+      onApply: () => handleApply(c.id),
+    }));
 
   return (
     <div className="min-h-screen py-12">
@@ -118,6 +99,12 @@ export default function Volunteer() {
           </Select>
         </div>
 
+        {isLoading && (
+          <div className="text-center py-20">Loading opportunities…</div>
+        )}
+        {error && (
+          <div className="text-center py-20 text-red-500">Failed to load opportunities.</div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {opportunities.map((opportunity, index) => (
             <div

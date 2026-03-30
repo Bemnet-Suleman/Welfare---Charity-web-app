@@ -1,10 +1,13 @@
 import { VolunteerCard, VolunteerCardProps } from "./VolunteerCard";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useTranslation } from "react-i18next";
 
 export function VolunteerSection() {
-  //todo: remove mock functionality
-  const opportunities: VolunteerCardProps[] = [
+  const { t } = useTranslation();
+  const defaultOpportunities: VolunteerCardProps[] = [
     {
       id: "1",
       title: "Medical Outreach Coordinator",
@@ -40,15 +43,37 @@ export function VolunteerSection() {
     },
   ];
 
+  const { data: apiOpportunities } = useQuery<VolunteerCardProps[]>({
+    queryKey: ["volunteerOpportunities"],
+    queryFn: async () => {
+      const data = await apiRequest("GET", "/api/campaigns/1/volunteers").then((response) => response.json());
+      if (!Array.isArray(data)) return defaultOpportunities;
+      return data.map((item: any) => ({
+        id: item.id || String(item.organizerId || Math.random()),
+        title: item.title || item.role || "Volunteer Opportunity",
+        organization: item.organization || item.campaign || "Community Partner",
+        description: item.description || "No description provided.",
+        location: item.location || "Remote",
+        timeCommitment: item.timeCommitment || "Flexible",
+        skills: item.skills || ["Community"],
+        volunteers: item.volunteers || 0,
+        spotsLeft: item.spotsLeft || 1,
+      }));
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const opportunities = apiOpportunities && apiOpportunities.length > 0 ? apiOpportunities : defaultOpportunities;
+
   return (
     <section className="py-16">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div>
             <h2 className="text-3xl md:text-4xl font-bold mb-2 font-['Poppins']">
-              Volunteer Opportunities
+              {t("Volunteer Opportunities")}
             </h2>
-            <p className="text-muted-foreground">Lend your time and skills to make a difference</p>
+            <p className="text-muted-foreground">{t("Lend your time and skills to make a difference")}</p>
           </div>
           <Button variant="outline" className="hidden md:flex gap-2" data-testid="button-view-all-opportunities">
             View All
@@ -70,7 +95,7 @@ export function VolunteerSection() {
 
         <div className="text-center md:hidden">
           <Button variant="outline" className="gap-2" data-testid="button-view-all-opportunities-mobile">
-            View All Opportunities
+            {t("View All Opportunities")}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

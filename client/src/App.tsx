@@ -17,8 +17,16 @@ import RequestAid from "@/pages/RequestAid";
 import DonorProfile from "@/pages/DonorProfile";
 import CampaignDetail from "@/pages/CampaignDetail";
 import NotFound from "@/pages/not-found";
+import { useTranslation } from "react-i18next";
+import { useEffect } from "react";
 
 function Router() {
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language]);
+
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -42,8 +50,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <div className="flex flex-col min-h-screen">
+          <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-primary text-primary-foreground px-4 py-2 rounded z-50">
+            Skip to main content
+          </a>
           <Header />
-          <main className="flex-1">
+          <main id="main-content" className="flex-1">
             <Router />
           </main>
           <Footer />
