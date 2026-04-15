@@ -201,7 +201,9 @@ app.use((req, res, next) => {
   }
 if (process.env.NODE_ENV !== 'production') {
   app.listen(process.env.PORT || "5000", () => console.log(`Server running on port ${process.env.PORT || "5000"}`));
-} 
+  app.use('/attached_assets', express.static(path.join(process.cwd(), 'attached_assets')));
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+}
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
