@@ -9,6 +9,7 @@ import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 
 interface Donation {
   donorId?: string;
@@ -213,14 +214,16 @@ export default function CampaignDetail() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button
-                    size="lg"
-                    className="flex-1 bg-accent hover:bg-accent text-accent-foreground border border-accent-border"
-                    data-testid="button-donate-now"
-                  >
-                    <Heart className="h-5 w-5 mr-2 fill-current" />
-                    Donate Now
-                  </Button>
+                  <Link href={`/donate?campaignId=${id}`}>
+                    <Button
+                      size="lg"
+                      className="flex-1 bg-accent hover:bg-accent text-accent-foreground border border-accent-border"
+                      data-testid="button-donate-now"
+                    >
+                      <Heart className="h-5 w-5 mr-2 fill-current" />
+                      Donate Now
+                    </Button>
+                  </Link>
                   <Button size="lg" variant="outline" onClick={handleShareClick} data-testid="button-share">
                     <Share2 className="h-5 w-5" />
                   </Button>

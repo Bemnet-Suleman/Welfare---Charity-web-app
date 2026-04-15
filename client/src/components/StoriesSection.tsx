@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 
 interface Story {
   id: string;
@@ -89,10 +90,12 @@ export function StoriesSection() {
             </h2>
             <p className="text-muted-foreground">{t("Real stories from real people making a difference")}</p>
           </div>
+          <Link href="/stories">
           <Button variant="outline" className="hidden md:flex gap-2" data-testid="button-view-all-stories">
-            Read More
+            {t("Read More")}
             <ArrowRight className="h-4 w-4" />
           </Button>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -108,10 +111,12 @@ export function StoriesSection() {
         </div>
 
         <div className="text-center md:hidden">
+          <Link href="/stories">
           <Button variant="outline" className="gap-2" data-testid="button-view-all-stories-mobile">
             {t("Read More Stories")}
             <ArrowRight className="h-4 w-4" />
           </Button>
+          </Link>
         </div>
       </div>
     </section>

@@ -51,6 +51,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  getUsers(limit?: number): Promise<User[]>;
 
   // Campaigns
   getCampaigns(limit?: number): Promise<Campaign[]>;
@@ -158,6 +159,7 @@ export class DatabaseStorage implements IStorage {
       title: "A Life Saved",
       content: "The medical supplies donated through Welfare saved my son's life. When the hospital ran out of critical medications, these generous donors stepped in. I will be forever grateful.",
       image: "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=800&q=80",
+      author:{"name": "John Smith", "role": "donor", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=John"},
       campaignId: campaign1.id,
       published: true,
       createdAt: new Date("2024-01-20"),
@@ -235,6 +237,13 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async getUsers(limit = 100): Promise<User[]> {
+    if (this.isDbAvailable()) {
+      return await db.select().from(users).limit(limit);
+    }
+    return Array.from(this.memUsers.values()).slice(0, limit);
+  }
+
   // Campaigns
   async getCampaigns(limit = 50): Promise<Campaign[]> {
     if (this.isDbAvailable()) {
@@ -261,7 +270,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db.insert(campaigns).values(insertCampaign).returning();
       return result[0];
     }
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     const campaign: Campaign = {
       ...insertCampaign,
       id,
@@ -334,7 +343,7 @@ export class DatabaseStorage implements IStorage {
     // For in-memory, just return the donation with an ID
     const donation: Donation = {
       ...insertDonation,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       donorId: insertDonation.donorId ?? null,
       anonymous: insertDonation.anonymous ?? false,
       message: insertDonation.message ?? null,
@@ -382,11 +391,12 @@ export class DatabaseStorage implements IStorage {
       const result = await db.insert(stories).values(insertStory).returning();
       return result[0];
     }
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     const story: Story = { 
       ...insertStory, 
       id, 
       image: insertStory.image ?? null,
+      author: (insertStory.author as Story["author"]) ?? null,
       campaignId: insertStory.campaignId ?? null,
       published: insertStory.published ?? null,
       createdAt: new Date() };
@@ -413,7 +423,7 @@ export class DatabaseStorage implements IStorage {
     }
     const volunteer: Volunteer = {
       ...insertVolunteer,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       campaignId: insertVolunteer.campaignId ?? null,
       skills: (insertVolunteer.skills as string[] | undefined) ?? null,
       availability: insertVolunteer.availability ?? null,
@@ -462,7 +472,7 @@ export class DatabaseStorage implements IStorage {
     }
     const aidRequest: AidRequest = {
       ...insertAidRequest,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       status: "pending",
       urgency: insertAidRequest.urgency || "medium",
       documents: Array.isArray(insertAidRequest.documents) ? (insertAidRequest.documents as string[]) : null,

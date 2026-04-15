@@ -42,12 +42,17 @@ export const donations = pgTable("donations", {
   transactionId: text("transaction_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
+const authorSchema = z.object({
+  name: z.string(),
+  role: z.string(),
+  avatar: z.string().optional(),
+});
 export const stories = pgTable("stories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
   content: text("content").notNull(),
   image: text("image"),
+  author: jsonb("author").$type<z.infer<typeof authorSchema>>(),
   campaignId: varchar("campaign_id").references(() => campaigns.id),
   published: boolean("published").default(false),
   createdAt: timestamp("created_at").defaultNow(),

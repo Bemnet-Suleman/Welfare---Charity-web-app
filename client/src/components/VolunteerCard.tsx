@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, Users } from "lucide-react";
-
+import {useTranslation} from "react-i18next";
 export interface VolunteerCardProps {
   id: string;
   title: string;
@@ -27,6 +27,7 @@ export function VolunteerCard({
   spotsLeft,
   onApply,
 }: VolunteerCardProps) {
+  const {t} = useTranslation();
   return (
     <Card className="p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
       <div className="space-y-4">
@@ -58,7 +59,7 @@ export function VolunteerCard({
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <Users className="h-4 w-4" />
-            <span>{volunteers} volunteers • {spotsLeft} spots left</span>
+            <span>{volunteers} {t("volunteers")} • {spotsLeft} {t("spots left")}</span>
           </div>
         </div>
 
@@ -67,7 +68,7 @@ export function VolunteerCard({
           onClick={onApply}
           data-testid="button-apply-volunteer"
         >
-          Apply Now
+          {t("Apply Now")}
         </Button>
       </div>
     </Card>

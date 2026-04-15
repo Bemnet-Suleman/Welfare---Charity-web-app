@@ -5,8 +5,10 @@ import { storage } from "./storage";
 import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import path from "path"
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, upload: any): Promise<Server> {
   // Auth routes
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
@@ -49,10 +51,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingUser) {
         return res.status(400).json({ error: "User already exists" });
       }
+      const allowedRoles = ["donor", "volunteer", "beneficiary"];
+      const safeRole = allowedRoles.includes(userData.role || "") ? userData.role : "donor";
       // Hash the password
       const hashedPassword = await bcrypt.hash(userData.password, 10);
       const user = await storage.createUser({
         ...userData,
+        role: safeRole,
         password: hashedPassword,
       });
       req.logIn(user, (err) => {
@@ -78,6 +83,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/users", async (req, res) => {
+    const currentUser = req.user as unknown as { role?: string } | undefined;
+    if (!currentUser || currentUser.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const users = await storage.getUsers();
+    res.json(users);
+  });
+
   app.get("/api/users/:id", async (req, res) => {
     const user = await storage.getUser(req.params.id);
     if (!user) {
@@ -86,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(user);
   });
 
-  app.put("/api/users/:id", async (req, res) => {
+  app.put("/api/users/:id", upload.single('avatar'), async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ error: "Not authenticated" });
     }
@@ -104,9 +118,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: z.string().min(3).optional(),
         fullName: z.string().optional(),
         email: z.string().email().optional(),
-        avatar: z.string().url().optional(),
+        avatar: z.string().optional(),
         password: z.string().min(6).optional(),
-      }).partial().parse(req.body);
+      }).partial().parse({
+        ...req.body,
+        avatar: req.file ? `/uploads/${req.file.filename}` : req.body.avatar
+      });
 
       if (updatePayload.password) {
         updatePayload.password = await bcrypt.hash(updatePayload.password, 10);
@@ -195,6 +212,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/payments/chapa", async (req, res) => {
+    try {
+      const {
+        campaignId,
+        amount,
+        email,
+        firstName,
+        lastName,
+        donorId,
+        anonymous,
+        donationType,
+      } = req.body as {
+        campaignId: string;
+        amount: string | number;
+        email: string;
+        firstName?: string;
+        lastName?: string;
+        donorId?: string | null;
+        anonymous?: boolean;
+        donationType?: string;
+      };
+
+      if (!campaignId || !amount || !email) {
+        return res.status(400).json({ error: "Missing payment details" });
+      }
+
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      // Fix: Added missing closing quote and used type casting for session
+      const chapaSecretKey = process.env.CHAPA_SECRET_KEY || "CHASECK_TEST-WB6QQBYFjbHtuPdZd7KadnkVND38cQV9";
+      
+      if (!chapaSecretKey) {
+        return res.status(500).json({ error: "Chapa payment provider is not configured." });
+      }
+
+      const txRef = `donation_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      const baseUrl = process.env.NODE_ENV === "production" 
+  ? "" 
+  : `http://localhost:${process.env.PORT || 5000}`;
+      const callbackUrl = `${baseUrl}/api/payments/chapa/verify?tx_ref=${encodeURIComponent(txRef)}`;
+      const returnUrl = `${baseUrl}/donate?status=success&tx_ref=${encodeURIComponent(txRef)}&campaignId=${encodeURIComponent(campaignId)}`;
+
+      const session = req.session as any;
+      if (!session.pendingDonations) {
+        session.pendingDonations = {};
+      }
+
+      session.pendingDonations[txRef] = {
+        campaignId,
+        amount: String(amount),
+        donorId: donorId ?? null,
+        anonymous: Boolean(anonymous),
+        message: "",
+        donationType: donationType || "one-time",
+        email,
+        firstName: firstName || "",
+        lastName: lastName || "",
+      };
+      const chapaResponse = await fetch("https://api.chapa.co/v1/transaction/initialize", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${chapaSecretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: Number(amount),
+          currency: "USD",
+          email,
+          first_name: firstName || "",
+          last_name: lastName || "",
+          tx_ref: txRef,
+          callback_url: callbackUrl,
+          return_url: returnUrl,
+        }),
+      });
+
+      const chapaData = await chapaResponse.json();
+      if (!chapaResponse.ok || !chapaData?.data?.checkout_url) {
+        const message = chapaData?.message || chapaData?.data?.message || "Failed to initialize Chapa checkout.";
+        return res.status(502).json({ error: message });
+      }
+
+      res.json({ checkoutUrl: chapaData.data.checkout_url, reference: txRef });
+    } catch (error) {
+      console.error("Chapa payment initialization failed", error);
+      res.status(500).json({ error: "Unable to initialize Chapa payment." });
+    }
+  });
+
+  app.get("/api/payments/chapa/verify", async (req, res) => {
+    try {
+      const txRef = String(req.query.tx_ref || "");
+      if (!txRef) {
+        return res.status(400).json({ error: "Missing transaction reference" });
+      }
+
+      const chapaSecretKey = process.env.CHAPA_SECRET_KEY || process.env.CHAPA_API_SECRET;
+      if (!chapaSecretKey) {
+        return res.status(500).json({ error: "Chapa payment provider is not configured." });
+      }
+
+      const verifyResponse = await fetch(`https://api.chapa.co/v1/transaction/verify/${encodeURIComponent(txRef)}`, {
+        headers: {
+          Authorization: `Bearer ${chapaSecretKey}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const verifyData = await verifyResponse.json();
+      if (!verifyResponse.ok || verifyData?.data?.status !== "success") {
+        const message = verifyData?.message || verifyData?.data?.message || "Payment verification failed.";
+        return res.status(400).json({ error: message });
+      }
+
+      // Fix: Cast session to any to access custom property
+      const session = req.session as any;
+      const pendingDonation = session?.pendingDonations?.[txRef];
+      
+      if (!pendingDonation) {
+        return res.status(404).json({ error: "Pending donation not found" });
+      }
+
+      const donation = await storage.createDonation({
+        campaignId: pendingDonation.campaignId,
+        donorId: pendingDonation.donorId,
+        amount: pendingDonation.amount,
+        anonymous: pendingDonation.anonymous,
+        message: pendingDonation.message,
+        paymentMethod: "chapa",
+        transactionId: txRef,
+      });
+
+      await storage.updateCampaignRaisedAmount(pendingDonation.campaignId, parseFloat(pendingDonation.amount));
+      
+      delete session.pendingDonations[txRef];
+
+      res.json({ success: true, donation });
+    } catch (error) {
+      console.error("Chapa payment verification failed", error);
+      res.status(500).json({ error: "Unable to verify Chapa payment." });
+    }
+  });
+
   app.get("/api/donations", async (req, res) => {
     const donorId = req.query.donorId as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
@@ -229,7 +392,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const campaign = story.campaignId ? await storage.getCampaign(story.campaignId) : null;
       return {
         ...story,
-        author: null,
+        author: story.author ?? {
+          name: "Anonymous",
+          role: "Beneficiary",
+          avatar: story.image ?? undefined,
+        },
         category: campaign?.category || "Impact Story",
       };
     }));
@@ -251,7 +418,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const enriched = {
       ...story,
-      author: null,
+      author: story.author ?? {
+        name: "Anonymous",
+        role: "Beneficiary",
+        avatar: story.image ?? undefined,
+      },
       category: campaign?.category || "Impact Story",
     };
     res.json(enriched);

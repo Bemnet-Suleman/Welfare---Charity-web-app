@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 
 export function VolunteerSection() {
   const { t } = useTranslation();
@@ -75,10 +76,12 @@ export function VolunteerSection() {
             </h2>
             <p className="text-muted-foreground">{t("Lend your time and skills to make a difference")}</p>
           </div>
+          <Link href="/volunteer">
           <Button variant="outline" className="hidden md:flex gap-2" data-testid="button-view-all-opportunities">
-            View All
+            {t("View All")}
             <ArrowRight className="h-4 w-4" />
           </Button>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

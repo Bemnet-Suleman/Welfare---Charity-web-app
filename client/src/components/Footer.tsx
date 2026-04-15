@@ -37,7 +37,7 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">{t("For Donors")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/"><a className="hover:text-foreground transition-colors">{t("Browse Campaigns")}</a></Link></li>
+              <li><Link href="/campaigns"><a className="hover:text-foreground transition-colors">{t("Browse Campaigns")}</a></Link></li>
               <li><Link href="/donate"><a className="hover:text-foreground transition-colors">{t("Make a Donation")}</a></Link></li>
               <li><Link href="/transparency"><a className="hover:text-foreground transition-colors">{t("Transparency")}</a></Link></li>
               <li><Link href="/profile"><a className="hover:text-foreground transition-colors">{t("My Donations")}</a></Link></li>
@@ -67,6 +67,7 @@ export function Footer() {
 
         <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <p>{t("© 2025 Welfare. All rights reserved.")}</p>
+          <p>{t("Designed with care by the")} <i>{t("Digital hands Team")}</i></p>
           <div className="flex gap-6">
             <a href="#" className="hover:text-foreground transition-colors">{t("Privacy Policy")}</a>
             <a href="#" className="hover:text-foreground transition-colors">{t("Terms of Service")}</a>

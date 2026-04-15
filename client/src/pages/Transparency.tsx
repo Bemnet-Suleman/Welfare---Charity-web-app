@@ -5,17 +5,18 @@ import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, DollarSign, Users, TrendingUp, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Transparency() {
   const { t } = useTranslation();
   const { data: donations } = useQuery({
     queryKey: ["/api/donations"],
-    queryFn: () => apiRequest("GET", "/api/donations").then(res => res.json()),
+    queryFn: () => apiRequest("GET", "/api/donations").then((res: Response) => res.json()),
   });
 
   const { data: campaigns } = useQuery({
     queryKey: ["/api/campaigns"],
-    queryFn: () => apiRequest("GET", "/api/campaigns").then(res => res.json()),
+    queryFn: () => apiRequest("GET", "/api/campaigns").then((res: Response) => res.json()),
   });
 
   const totalRaised = (donations || []).reduce((sum: number, d: any) => sum + Number(d.amount || 0), 0);

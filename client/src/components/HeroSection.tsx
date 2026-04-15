@@ -29,12 +29,12 @@ export function HeroSection() {
       <div 
         className="absolute inset-0 bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20"
         style={{
-          backgroundImage: "url('https://images.unsplash.com/photo-1593113598332-cd288d649433?w=1920&q=80')",
+          backgroundImage: "url('/attached_assets/Hero1.jpg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
         role="img"
-        aria-label="People helping each other in community"
+        aria-label={t("People helping each other in community")}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-primary/80 via-primary/60 to-transparent" />
       </div>
@@ -58,12 +58,19 @@ export function HeroSection() {
               {t("Start Giving")}
             </Button>
           </Link>
-          <Link href="/">
+          <Link href="/#campaigns">
             <Button 
               size="lg" 
               variant="outline" 
               className="backdrop-blur-sm bg-white/10 border-white/20 text-white hover:bg-white/20 text-lg px-8 py-6 transition-transform hover:scale-105"
               data-testid="button-explore-campaigns"
+              onClick={(e) => {
+                e.preventDefault();
+                const element = document.getElementById('campaigns');
+                if (element) {
+                  element.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
             >
               {t("Explore Campaigns")}
             </Button>
@@ -75,7 +82,7 @@ export function HeroSection() {
             <div className="flex items-center justify-center gap-3 mb-2">
               <TrendingUp className="h-6 w-6 text-secondary" />
               <span className="text-4xl font-bold text-white font-['Space_Grotesk']" data-testid="stat-donations" aria-label={`${stats.donations} donations raised`}>
-                ${(stats.donations / 1000).toFixed(0)}k
+                ${(stats.donations / 1000).toFixed(0)}{t("K")}
               </span>
             </div>
             <p className="text-white/80">{t("Donations Raised")}</p>
@@ -85,7 +92,7 @@ export function HeroSection() {
             <div className="flex items-center justify-center gap-3 mb-2">
               <Heart className="h-6 w-6 text-accent fill-accent" />
               <span className="text-4xl font-bold text-white font-['Space_Grotesk']" data-testid="stat-lives">
-                {(stats.lives / 1000).toFixed(1)}k
+                {(stats.lives / 1000).toFixed(1)}{t("K")}
               </span>
             </div>
             <p className="text-white/80">{t("Lives Helped")}</p>
@@ -95,7 +102,7 @@ export function HeroSection() {
             <div className="flex items-center justify-center gap-3 mb-2">
               <Users className="h-6 w-6 text-primary" />
               <span className="text-4xl font-bold text-white font-['Space_Grotesk']" data-testid="stat-volunteers">
-                {(stats.volunteers / 1000).toFixed(1)}k
+                {(stats.volunteers / 1000).toFixed(1)}{t("K")}
               </span>
             </div>
             <p className="text-white/80">{t("Active Volunteers")}</p>

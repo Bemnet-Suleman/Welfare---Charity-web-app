@@ -21,30 +21,30 @@ export function ImpactStats() {
   const statItems = [
     {
       icon: TrendingUp,
-      value: stats ? `$${(stats.totalRaised / 1000000).toFixed(1)}M` : "$2.5M",
+      value: stats ? `$${(stats.totalRaised / 1000000).toFixed(1)}`+ t("M") : "$2.5M",
       label: t("Total Raised"),
-      change: t("+23% this month"),
+      change: "+23%"+ t("this month"),
       color: "text-chart-1",
     },
     {
       icon: Heart,
-      value: stats ? `${(stats.livesImpacted / 1000).toFixed(0)}K` : "45K",
+      value: stats ? `${(stats.livesImpacted / 1000).toFixed(0)}`+ t("K") : "45K",
       label: t("Lives Impacted"),
-      change: t("+15% this month"),
+      change: "+15% " + t("this month"),
       color: "text-chart-3",
     },
     {
       icon: Users,
-      value: stats ? `${(stats.activeVolunteers / 1000).toFixed(1)}K` : "5.2K",
+      value: stats ? `${(stats.activeVolunteers / 1000).toFixed(1)}`+ t("K") : "5.2K",
       label: t("Active Volunteers"),
-      change: t("+8% this month"),
+      change:"+8%" + t("this month"),
       color: "text-chart-2",
     },
     {
       icon: Target,
       value: stats ? `${stats.goalsAchieved}%` : "89%",
       label: t("Goals Achieved"),
-      change: t("+5% this month"),
+      change: "+5%"+ t("this month"),
       color: "text-chart-4",
     },
   ];

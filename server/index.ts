@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
+import path from "path";
 
 // Load environment variables manually BEFORE any other imports
 try {
@@ -27,6 +28,7 @@ try {
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
 console.log("NODE_ENV:", process.env.NODE_ENV);
 
+
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import session from "express-session";
@@ -34,6 +36,7 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import ConnectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
+import multer from "multer";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { storage } from "./storage";
@@ -55,6 +58,22 @@ console.log("CORS middleware added");
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 console.log("Body parsing middleware added");
+
+// Serve static files from attached_assets and uploads
+app.use('/attached_assets', express.static(path.join(process.cwd(), 'attached_assets')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
+// Configure multer for file uploads
+const storageConfig = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(process.cwd(), 'uploads'));
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storageConfig });
 
 // Session setup
 const PgSession = ConnectPgSimple(session);
@@ -150,7 +169,7 @@ app.use((req, res, next) => {
 
 (async () => {
   console.log("Registering routes...");
-  const server = await registerRoutes(app);
+  const server = await registerRoutes(app, upload);
   console.log("Routes registered");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -180,6 +199,9 @@ app.use((req, res, next) => {
       console.log("Vite setup complete (fallback)");
     }
   }
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(process.env.PORT || "5000", () => console.log(`Server running on port ${process.env.PORT || "5000"}`));
+} 
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
@@ -192,7 +214,8 @@ app.use((req, res, next) => {
       host: "0.0.0.0",
     },
     () => {
-      log(`serving on port ${port}`);
+      log(`serving on port http://localhost:${port}`);
     },
   );
 })();
+export default app;

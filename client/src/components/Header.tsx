@@ -1,4 +1,4 @@
-import { Heart, Menu, X } from "lucide-react";
+import { Heart, Menu, X, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 import { useState } from "react";
@@ -6,6 +6,15 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -18,7 +27,7 @@ export function Header() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const user = userData as { id: string; role?: string } | undefined;
+  const user = userData as { id: string; username: string; fullName?: string; avatar?: string; role?: string } | undefined;
   const isLoggedIn = Boolean(user);
 
   const toggleLanguage = () => {
@@ -37,7 +46,7 @@ export function Header() {
 
           <nav className="hidden md:flex items-center flex-1 justify-center gap-8">
             <div className="flex items-center gap-2">
-              <Link href="/">
+              <Link href="/campaigns">
                 <Button variant="ghost" data-testid="link-campaigns">{t("Campaigns")}</Button>
               </Link>
               <Link href="/volunteer">
@@ -66,12 +75,44 @@ export function Header() {
                 </Button>
               </Link>
               {isLoggedIn ? (
-                <Button variant="outline" onClick={async () => {
-                  await apiRequest("POST", "/api/auth/logout");
-                  window.location.reload();
-                }} data-testid="button-logout">
-                  {t("Logout")}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user?.avatar} alt={user?.fullName || user?.username} />
+                        <AvatarFallback>{(user?.fullName || user?.username || "U")[0]}</AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{user?.fullName || user?.username}</p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user?.role === 'admin' ? t('Admin') : user?.role === 'organizer' ? t('Organizer') : t('Donor')}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile" className="cursor-pointer">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>{t("Profile")}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={async () => {
+                        await apiRequest("POST", "/api/auth/logout");
+                        window.location.reload();
+                      }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>{t("Logout")}</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
                 <div className="flex gap-2">
                   <Link href="/login">
@@ -106,7 +147,7 @@ export function Header() {
 
         {mobileMenuOpen && (
           <nav className="md:hidden mt-4 pb-4 flex flex-col gap-2 animate-in slide-in-from-top-2 duration-200">
-            <Link href="/">
+            <Link href="/campaigns">
               <Button variant="ghost" className="w-full justify-start" data-testid="link-campaigns-mobile">
                 {t("Campaigns")}
               </Button>

@@ -49,7 +49,6 @@ CREATE TABLE stories (
   title text NOT NULL,
   content text NOT NULL,
   image text,
-  author_id varchar NOT NULL REFERENCES users(id),
   campaign_id varchar REFERENCES campaigns(id),
   published boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now()

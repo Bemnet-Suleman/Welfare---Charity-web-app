@@ -20,7 +20,7 @@ const registerSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string().min(1, "Please confirm your password"),
-  userType: z.enum(["donor", "volunteer", "beneficiary", "organization"]),
+  userType: z.enum(["donor", "volunteer", "beneficiary"]),
   agreedToTerms: z.boolean().refine(val => val === true, "You must agree to the terms"),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -47,13 +47,12 @@ export default function Register() {
 
   const onSubmit = async (data: RegisterForm) => {
     try {
-      const role = data.userType === "organization" ? "organizer" : data.userType;
       await apiRequest("POST", "/api/auth/register", {
         username: data.email, // use email as username for simplicity
         fullName: `${data.firstName} ${data.lastName}`,
         email: data.email,
         password: data.password,
-        role: role,
+        role: data.userType,
       });
       toast({
       title: t("Registration Successful"),
@@ -110,13 +109,6 @@ export default function Register() {
                   <Label htmlFor="beneficiary" className="flex-1 cursor-pointer">
                     <p className="font-semibold">{t("Request Assistance")}</p>
                     <p className="text-sm text-muted-foreground">{t("Submit aid requests for yourself or your community")}</p>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer">
-                  <RadioGroupItem value="organization" id="organization" data-testid="radio-organization" />
-                  <Label htmlFor="organization" className="flex-1 cursor-pointer">
-                    <p className="font-semibold">{t("Create Campaigns")}</p>
-                    <p className="text-sm text-muted-foreground">{t("Launch fundraising campaigns for your organization")}</p>
                   </Label>
                 </div>
               </RadioGroup>

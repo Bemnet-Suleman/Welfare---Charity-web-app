@@ -42,7 +42,7 @@ export function CampaignCard({
           className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
         />
         <div className="absolute top-4 left-4 flex gap-2">
-          <Badge className="bg-card border-card-border text-card-foreground">{category}</Badge>
+          <Badge className="bg-card border-card-border text-card-foreground">{t(category)}</Badge>
           {urgent && (
             <Badge className="bg-destructive text-destructive-foreground animate-pulse">
               {t("Urgent")}
@@ -75,7 +75,7 @@ export function CampaignCard({
         </div>
 
         <div className="flex gap-2">
-          <Link href="/donate">
+          <Link href={`/donate?campaignId=${id}`}>
             <Button 
               className="flex-1 bg-accent hover:bg-accent text-accent-foreground border border-accent-border"
               data-testid="button-donate-campaign"

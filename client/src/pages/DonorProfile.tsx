@@ -60,6 +60,7 @@ export default function DonorProfile() {
     avatar: "",
     password: "",
   });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ["auth/me"],
@@ -118,18 +119,31 @@ export default function DonorProfile() {
     if (!user?.id) return;
 
     try {
-      const payload: any = {
-        username: editFormData.username,
-        fullName: editFormData.fullName,
-        email: editFormData.email,
-        avatar: editFormData.avatar,
-      };
+      const formData = new FormData();
+      formData.append('username', editFormData.username);
+      formData.append('fullName', editFormData.fullName);
+      formData.append('email', editFormData.email);
 
-      if (editFormData.password) {
-        payload.password = editFormData.password;
+      if (avatarFile) {
+        formData.append('avatar', avatarFile);
+      } else if (editFormData.avatar) {
+        formData.append('avatar', editFormData.avatar);
       }
 
-      const response = await apiRequest("PUT", `/api/users/${user.id}`, payload);
+      if (editFormData.password) {
+        formData.append('password', editFormData.password);
+      }
+
+      const response = await fetch(`/api/users/${user.id}`, {
+        method: 'PUT',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
       const updated = await response.json();
 
       queryClient.setQueryData(["auth/me"], updated.user);
@@ -141,6 +155,7 @@ export default function DonorProfile() {
       });
 
       setIsEditing(false);
+      setAvatarFile(null);
     } catch (error: any) {
       toast({
         title: t("donorProfile.updateFailed"),
@@ -186,7 +201,7 @@ export default function DonorProfile() {
 
             <div className="flex-1 text-center md:text-left">
               <h1 className="text-3xl font-bold mb-2 font-['Poppins']">{user.fullName || user.username}</h1>
-              <p className="text-muted-foreground mb-2">Member since {new Date(user.createdAt ?? Date.now()).toLocaleDateString()}</p>
+              <p className="text-muted-foreground mb-2">{t("Member since")} {new Date(user.createdAt ?? Date.now()).toLocaleDateString()}</p>
               <p className="text-sm text-muted-foreground mb-4">
                 {isAdmin
                   ? t("donorProfile.adminDescription")
@@ -197,7 +212,7 @@ export default function DonorProfile() {
 
               <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                 <Badge variant="secondary" className="gap-1">{isAdmin ? t("donorProfile.charityAdmin") : isOrganizer ? t("donorProfile.organization") : t("donorProfile.donor")}</Badge>
-                <Badge variant="secondary" className="gap-1">{user.role || "donor"}</Badge>
+                <Badge variant="secondary" className="gap-1">{t(user.role || "donor")}</Badge>
                 <Badge variant="secondary" className="gap-1">{campaignsSupported} {t("donorProfile.donations")}</Badge>
               </div>
             </div>
@@ -237,13 +252,25 @@ export default function DonorProfile() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="avatar">{t("donorProfile.avatarUrl")}</Label>
+                    <Label htmlFor="avatar">{t("donorProfile.avatar")}</Label>
                     <Input
                       id="avatar"
-                      value={editFormData.avatar}
-                      onChange={(e) => setEditFormData((prev) => ({ ...prev, avatar: e.target.value }))}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setAvatarFile(file);
+                          setEditFormData((prev) => ({ ...prev, avatar: "" }));
+                        }
+                      }}
                       className="w-full"
                     />
+                    {avatarFile && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Selected: {avatarFile.name}
+                      </p>
+                    )}
                   </div>
                 </div>
 

@@ -8,6 +8,7 @@ import { Footer } from "@/components/Footer";
 import Home from "@/pages/Home";
 import Volunteer from "@/pages/Volunteer";
 import Stories from "@/pages/Stories";
+import Campaigns from "@/pages/Campaigns";
 import Transparency from "@/pages/Transparency";
 import Donate from "@/pages/Donate";
 import Register from "@/pages/Register";
@@ -16,6 +17,7 @@ import CreateCampaign from "@/pages/CreateCampaign";
 import RequestAid from "@/pages/RequestAid";
 import DonorProfile from "@/pages/DonorProfile";
 import CampaignDetail from "@/pages/CampaignDetail";
+import AdminDashboard from "@/pages/AdminDashboard";
 import NotFound from "@/pages/not-found";
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
@@ -30,6 +32,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/campaigns" component={Campaigns} />
       <Route path="/volunteer" component={Volunteer} />
       <Route path="/stories" component={Stories} />
       <Route path="/transparency" component={Transparency} />
@@ -38,6 +41,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/create-campaign" component={CreateCampaign} />
       <Route path="/request-aid" component={RequestAid} />
+      <Route path="/admin" component={AdminDashboard} />
       <Route path="/profile" component={DonorProfile} />
       <Route path="/campaign/:id" component={CampaignDetail} />
       <Route component={NotFound} />

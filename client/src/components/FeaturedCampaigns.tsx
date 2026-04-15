@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 
 interface Campaign {
   id: string;
@@ -96,7 +97,7 @@ export function FeaturedCampaigns() {
   const campaignCards = campaigns?.map(transformCampaignToCardProps) || [];
 
   return (
-    <section className="py-16">
+    <section id="campaigns" className="py-16">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div>
@@ -105,10 +106,12 @@ export function FeaturedCampaigns() {
             </h2>
             <p className="text-muted-foreground">{t("Make a difference in causes that matter")}</p>
           </div>
-          <Button variant="outline" className="hidden md:flex gap-2" data-testid="button-view-all-campaigns">
-            View All
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <Link href="/campaigns">
+            <Button variant="outline" className="hidden md:flex gap-2" data-testid="button-view-all-campaigns">
+              {t("View All Campaigns")}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -124,10 +127,12 @@ export function FeaturedCampaigns() {
         </div>
 
         <div className="text-center md:hidden">
-          <Button variant="outline" className="gap-2" data-testid="button-view-all-campaigns-mobile">
-            {t("View All Campaigns")}
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <Link href="/campaigns">
+            <Button variant="outline" className="gap-2" data-testid="button-view-all-campaigns-mobile">
+              {t("View All Campaigns")}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

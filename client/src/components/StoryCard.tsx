@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Quote } from "lucide-react";
-
+import { useTranslation } from "react-i18next";
 export interface StoryCardProps {
   id: string;
   quote: string;
@@ -16,13 +16,18 @@ export interface StoryCardProps {
 }
 
 export function StoryCard({ quote, author, category, image }: StoryCardProps) {
+  const { t } = useTranslation();
+  const authorName = author?.name || "Anonymous";
+  const authorRole = author?.role || "Beneficiary";
+  const authorAvatar = author?.avatar || image || undefined;
+
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 group">
       {image && (
         <div className="relative aspect-video overflow-hidden">
-          <img 
-            src={image} 
-            alt={author.name}
+          <img
+            src={image}
+            alt={`${authorName}'s story image`}
             className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
           />
         </div>
@@ -32,7 +37,7 @@ export function StoryCard({ quote, author, category, image }: StoryCardProps) {
         <div className="flex items-start justify-between gap-4">
           <Quote className="h-8 w-8 text-accent flex-shrink-0" />
           <Badge variant="secondary" className="bg-secondary/10 text-secondary border-secondary/20">
-            {category}
+            {t(category)}
           </Badge>
         </div>
 
@@ -42,12 +47,12 @@ export function StoryCard({ quote, author, category, image }: StoryCardProps) {
 
         <div className="flex items-center gap-3 pt-4 border-t border-border">
           <Avatar className="h-12 w-12">
-            <AvatarImage src={author.avatar} />
-            <AvatarFallback>{author.name[0]}</AvatarFallback>
+            <AvatarImage src={authorAvatar} />
+            <AvatarFallback>{authorName[0]}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-semibold" data-testid="story-author">{author.name}</p>
-            <p className="text-sm text-muted-foreground">{author.role}</p>
+            <p className="font-semibold" data-testid="story-author">{authorName}</p>
+            <p className="text-sm text-muted-foreground">{t(authorRole)}</p>
           </div>
         </div>
       </div>

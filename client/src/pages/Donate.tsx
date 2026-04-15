@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Heart, CreditCard, Shield, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,8 +28,16 @@ type DonationForm = z.infer<typeof donationSchema>;
 
 export default function Donate() {
   const [agreed, setAgreed] = useState(false);
+  const [isCampaignMode, setIsCampaignMode] = useState(false);
+  const [hasInvalidCampaignToast, setHasInvalidCampaignToast] = useState(false);
   const { t } = useTranslation();
   const { toast } = useToast();
+  const quickAmounts = [10, 25, 50, 100, 250];
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const campaignIdFromUrl = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("campaignId") || ""
+    : "";
 
   const { data: campaigns } = useQuery({
     queryKey: ["/api/campaigns"],
@@ -45,20 +53,103 @@ export default function Donate() {
 
   const user = userData as { id: string; fullName?: string; username?: string; email?: string; role?: string } | undefined;
   const isAuthenticated = Boolean(user);
-  const isAdmin = user?.role === "admin";
-  const isOrganizer = user?.role === "organizer";
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, setValue, watch } = useForm<DonationForm>({
     resolver: zodResolver(donationSchema),
     defaultValues: {
       donationType: "one-time",
+      amount: "",
+      campaignId: campaignIdFromUrl,
     },
   });
 
-  const watchedAmount = watch("amount");
-  const watchedCampaignId = watch("campaignId");
+  
 
-  const quickAmounts = ["25", "50", "100", "250", "500"];
+
+  const watchedAmount = watch("amount") || "";
+  const watchedCampaignId = watch("campaignId") || "";
+
+  const selectedCampaign = campaigns?.find(
+    (c: any) => c.id === watchedCampaignId || c.id === campaignIdFromUrl,
+  );
+
+  const pageTitle = selectedCampaign
+    ? t("Donate to {{title}}", { title: selectedCampaign.title })
+    : t("Make a Donation");
+
+  // Pre-select campaign if campaignId is in URL and handle invalid campaign ID
+  useEffect(() => {
+    if (!campaignIdFromUrl) {
+      setIsCampaignMode(false);
+      setHasInvalidCampaignToast(false);
+      return;
+    }
+
+    if (!campaigns) {
+      return;
+    }
+
+    const campaign = campaigns.find((c: any) => c.id === campaignIdFromUrl);
+
+    if (campaign) {
+      setValue("campaignId", campaignIdFromUrl);
+      setValue("donationType", "one-time");
+      setIsCampaignMode(true);
+      setHasInvalidCampaignToast(false);
+    } else {
+      setIsCampaignMode(false);
+      if (!hasInvalidCampaignToast) {
+        toast({
+          title: t("Invalid campaign"),
+          description: t("The campaign specified in the URL could not be found. Please select another campaign."),
+          variant: "destructive",
+        });
+        setHasInvalidCampaignToast(true);
+      }
+    }
+  }, [campaignIdFromUrl, campaigns, setValue, t, toast, hasInvalidCampaignToast]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const status = searchParams.get("status");
+    const txRef = searchParams.get("tx_ref");
+
+    if (status !== "success" || !txRef) {
+      return;
+    }
+
+    const verifyDonation = async () => {
+      setIsVerifying(true);
+      try {
+        const response = await apiRequest("GET", `/api/payments/chapa/verify?tx_ref=${encodeURIComponent(txRef)}`);
+        await response.json();
+
+        toast({
+          title: t("Payment verified"),
+          description: t("Your donation has been recorded successfully."),
+        });
+
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("status");
+        cleanUrl.searchParams.delete("tx_ref");
+        window.history.replaceState({}, "", cleanUrl.toString());
+      } catch (error: any) {
+        toast({
+          title: t("Payment verification failed"),
+          description: error?.message || t("Please check your payment status or try again."),
+          variant: "destructive",
+        });
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+
+    verifyDonation();
+  }, [t, toast]);
 
   const onSubmit = async (data: DonationForm) => {
     if (!isAuthenticated) {
@@ -72,9 +163,12 @@ export default function Donate() {
       const donationPayload: any = {
         campaignId: data.campaignId,
         amount: data.amount,
-        paymentMethod: "card",
+        paymentMethod: "chapa",
         message: "",
         donationType: data.donationType,
+        email: data.email || user?.email || "",
+        firstName: data.firstName || user?.fullName?.split(" ")[0] || user?.username || "Supporter",
+        lastName: data.lastName || user?.fullName?.split(" ").slice(1).join(" ") || "",
       };
 
       if (isAuthenticated && user?.id) {
@@ -85,12 +179,14 @@ export default function Donate() {
         donationPayload.anonymous = true;
       }
 
-      await apiRequest("POST", "/api/donations", donationPayload);
+      const response = await apiRequest("POST", "/api/payments/chapa", donationPayload);
+      const result = await response.json();
 
-      toast({
-        title: t("Donation Successful"),
-        description: isAuthenticated ? t("Thanks for donating as a registered supporter!") : t("Thanks for donating as a guest supporter!"),
-      });
+      if (!result?.checkoutUrl) {
+        throw new Error(t("Unable to start Chapa checkout."));
+      }
+
+      window.location.href = result.checkoutUrl;
 
       // Reset form or redirect
       setValue("amount", "");
@@ -116,10 +212,12 @@ export default function Donate() {
         <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <Heart className="h-16 w-16 text-accent fill-accent mx-auto mb-4" />
           <h1 className="text-4xl md:text-5xl font-bold mb-4 font-['Poppins']">
-            {t("Make a Donation")}
+            {pageTitle}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {t("Your generosity creates lasting change. Every contribution makes a real difference in someone's life.")}
+            {selectedCampaign
+              ? t("You are supporting {{title}}. Your donation will directly impact this campaign.", { title: selectedCampaign.title })
+              : t("Your generosity creates lasting change. Every contribution makes a real difference in someone's life.")}
           </p>
         </div>
 
@@ -128,6 +226,13 @@ export default function Donate() {
             <div className="space-y-6">
               <div>
                 <Label className="text-lg font-semibold mb-4 block">{t("Select Donation Type")}</Label>
+                {isCampaignMode && selectedCampaign && (
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {t("This donation is for {{title}}, we recommend one-time donations with campaign-specific support.", {
+                      title: selectedCampaign.title,
+                    })}
+                  </p>
+                )}
                 <RadioGroup {...register("donationType")} onValueChange={(value) => setValue("donationType", value)}>
                   <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer">
                     <RadioGroupItem value="one-time" id="one-time" data-testid="radio-one-time" />
@@ -153,9 +258,9 @@ export default function Donate() {
                     <Button
                       key={amt}
                       type="button"
-                      variant={watchedAmount === amt ? "default" : "outline"}
-                      className={watchedAmount === amt ? "bg-primary text-primary-foreground" : ""}
-                      onClick={() => setValue("amount", amt)}
+                      variant={watchedAmount === String(amt) ? "default" : "outline"}
+                      className={watchedAmount === String(amt) ? "bg-primary text-primary-foreground" : ""}
+                      onClick={() => setValue("amount", String(amt))}
                       data-testid={`button-amount-${amt}`}
                     >
                       ${amt}
@@ -177,20 +282,37 @@ export default function Donate() {
 
               <div>
                 <Label className="text-lg font-semibold mb-4 block">{t("Select Campaign")}</Label>
-                <Select value={watchedCampaignId} onValueChange={(value) => setValue("campaignId", value)}>
-                  <SelectTrigger data-testid="select-campaign">
-                    <SelectValue placeholder={t("Choose a campaign to support")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {campaigns?.map((campaign: any) => (
-                      <SelectItem key={campaign.id} value={campaign.id}>
-                        {campaign.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isCampaignMode && selectedCampaign ? (
+                  <div className="rounded-lg border border-secondary/30 bg-secondary/10 p-3">
+                    <p className="font-medium">{selectedCampaign.title}</p>
+                    <p className="text-sm text-muted-foreground">{selectedCampaign.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t("Campaign-specific donation mode enabled.")}</p>
+                  </div>
+                ) : (
+                  <Select value={watchedCampaignId} onValueChange={(value) => setValue("campaignId", value)}>
+                    <SelectTrigger data-testid="select-campaign">
+                      <SelectValue placeholder={t("Choose a campaign to support")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {campaigns?.map((campaign: any) => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          {campaign.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {errors.campaignId && <p className="text-red-500 text-sm mt-1">{t(errors.campaignId.message as string)}</p>}
               </div>
+
+              {selectedCampaign && (
+                <Card className="p-4 rounded-lg border border-secondary/20 bg-secondary/10">
+                  <h4 className="font-semibold mb-2">{t("Selected Campaign")}</h4>
+                  <p className="font-medium">{selectedCampaign.title}</p>
+                  <p className="text-sm text-muted-foreground">{selectedCampaign.description}</p>
+                  <p className="text-sm text-muted-foreground mt-2">{t("Category")}: {selectedCampaign.category || t("Unspecified")}</p>
+                </Card>
+              )}
 
               <div>
                 <Label className="text-lg font-semibold mb-4 block">{t("Your Information")}</Label>
@@ -230,7 +352,7 @@ export default function Donate() {
                   <div className="p-4 rounded-lg border hover-elevate cursor-pointer">
                     <div className="flex items-center gap-3">
                       <CreditCard className="h-5 w-5" />
-                      <span className="font-medium">{t("Credit / Debit Card")}</span>
+                      <span className="font-medium">{t("Pay with Chapa (Credit / Debit Card)")}</span>
                     </div>
                   </div>
                 </div>
@@ -252,11 +374,13 @@ export default function Donate() {
                 size="lg" 
                 className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border"
                 onClick={handleSubmit(onSubmit)}
-                disabled={!agreed || isSubmitting}
+                disabled={!agreed || isSubmitting || isVerifying}
                 data-testid="button-complete-donation"
               >
                 <Heart className="h-5 w-5 mr-2 fill-current" />
-                {isSubmitting ? t("Processing...") : `${t("Complete Donation of") } $${watchedAmount || "0"}`}
+                {(isSubmitting || isVerifying)
+                  ? t("Processing...")
+                  : `${t("Complete Donation of") } $${watchedAmount || "0"}`}
               </Button>
             </div>
           </Card>
