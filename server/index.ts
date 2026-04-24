@@ -2,7 +2,6 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import path from "path";
 
-// Load environment variables manually BEFORE any other imports
 try {
   const envPath = join(process.cwd(), ".env");
   const envContent = readFileSync(envPath, "utf8");
@@ -87,8 +86,8 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // Set to true in production with HTTPS
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      secure: false, 
+      maxAge: 24 * 60 * 60 * 1000, 
     },
   }),
 );
@@ -180,9 +179,7 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Import or serve the client app depending on the environment.
-  // During local development we use Vite middleware to enable HMR.
-  // In production we serve the compiled build output.
+
   if (process.env.NODE_ENV === "development") {
     console.log("Setting up Vite for development...");
     await setupVite(app, server);
@@ -205,10 +202,7 @@ if (process.env.NODE_ENV !== 'production') {
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(
     {
