@@ -19,6 +19,28 @@ export default defineConfig({
         ]
       : []),
   ],
+  server: {
+    // Proxy API calls to local Express server during development
+    proxy: {
+      "/api": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+        ws: true,
+      },
+      "/attached_assets": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
+      "/uploads": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
+    },
+    fs: {
+      strict: true,
+      deny: ["**/.*"],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -30,17 +52,5 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-  },
-  server: {
-    fs: {
-      strict: true,
-      deny: ["**/.*"],
-    },
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-      },
-    },
   },
 });

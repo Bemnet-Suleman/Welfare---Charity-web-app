@@ -1,12 +1,14 @@
 import type { Express } from "express";
+import { createServer, type Server } from "http";
 import passport from "passport";
 import { storage } from "./storage";
 import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import multer from "multer";
+import path from "path"
 
-export async function registerRoutes(app: Express, upload: any): Promise<void> {
+export async function registerRoutes(app: Express, upload: any): Promise<Server> {
   // Auth routes
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
@@ -530,4 +532,6 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     }
   });
 
+  const httpServer = createServer(app);
+  return httpServer;
 }

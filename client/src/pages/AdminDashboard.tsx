@@ -90,9 +90,11 @@ export default function AdminDashboard() {
     <div className="min-h-screen py-12">
       <div className="max-w-6xl mx-auto px-4">
         <div className="mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold mb-3 font-['Poppins']">{t("Charity Admin Control Center")}</h1>
-          <p className="text-lg text-muted-foreground max-w-3xl">
-            {t("Manage campaigns, stories, volunteer support, beneficiary requests and user accounts from a secure admin dashboard.")}
+            <h1 className="text-4xl md:text-5xl font-bold mb-3 font-['Poppins']">{user?.role === "system_admin" ? "System Administration" : "Charity Admin Control Center"}</h1>
+            <p className="text-lg text-muted-foreground max-w-3xl">
+              {user?.role === "system_admin"
+                ? "Manage users, roles, campaigns, stories, volunteer support, beneficiary requests and system settings."
+                : "Manage campaigns, stories, volunteer support, beneficiary requests and user accounts from a secure admin dashboard."}
           </p>
         </div>
 

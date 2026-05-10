@@ -52,7 +52,12 @@ export default function Login() {
         localStorage.removeItem("auth_user");
       }
 
-      setLocation("/");
+      // Redirect based on role
+      if (result.user.role === "admin" || result.user.role === "system_admin") {
+        setLocation("/admin");
+      } else {
+        setLocation("/");
+      }
     } catch (error: any) {
       toast({
         title: t("Login Failed"),

@@ -28,15 +28,11 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 const DEFAULT_DB_URL = "postgresql://postgres:postgres.com@localhost:5432/WELFARE";
-const rawDatabaseUrl = process.env.DATABASE_URL || process.env.LOCAL_DATABASE_URL || DEFAULT_DB_URL;
-const DATABASE_URL = rawDatabaseUrl.replace(/"/g, "").trim();
+const DATABASE_URL = (process.env.DATABASE_URL || DEFAULT_DB_URL).replace(/"/g, "");
 
 let db: any;
 try {
-  console.log(
-    "Connecting to database using URL:",
-    process.env.DATABASE_URL ? "DATABASE_URL" : process.env.LOCAL_DATABASE_URL ? "LOCAL_DATABASE_URL" : "DEFAULT_DB_URL",
-  );
+  console.log("Connecting to database using URL:", DATABASE_URL);
   const client = postgres(DATABASE_URL);
   db = drizzle(client, {
     schema: { users, campaigns, donations, stories, volunteers, aidRequests },
