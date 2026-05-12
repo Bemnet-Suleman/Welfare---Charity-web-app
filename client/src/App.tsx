@@ -14,6 +14,7 @@ import Donate from "@/pages/Donate";
 import Register from "@/pages/Register";
 import Login from "@/pages/Login";
 import CreateCampaign from "@/pages/CreateCampaign";
+import CreateStory from "@/pages/CreateStory";
 import RequestAid from "@/pages/RequestAid";
 import DonorProfile from "@/pages/DonorProfile";
 import CampaignDetail from "@/pages/CampaignDetail";
@@ -40,6 +41,9 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/login" component={Login} />
       <Route path="/create-campaign" component={CreateCampaign} />
+      <Route path="/edit-campaign/:id" component={CreateCampaign} />
+      <Route path="/create-story" component={CreateStory} />
+      <Route path="/edit-story/:id" component={CreateStory} />
       <Route path="/request-aid" component={RequestAid} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/profile" component={DonorProfile} />

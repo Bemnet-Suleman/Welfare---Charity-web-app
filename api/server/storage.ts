@@ -57,6 +57,8 @@ export interface IStorage {
   getCampaigns(limit?: number): Promise<Campaign[]>;
   getCampaign(id: string): Promise<Campaign | undefined>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
+  updateCampaign(id: string, campaign: Partial<InsertCampaign>): Promise<Campaign | undefined>;
+  deleteCampaign(id: string): Promise<void>;
   updateCampaignRaisedAmount(id: string, amount: number): Promise<void>;
 
   // Donations
@@ -70,11 +72,15 @@ export interface IStorage {
   getStories(limit?: number): Promise<Story[]>;
   getStory(id: string): Promise<Story | undefined>;
   createStory(story: InsertStory): Promise<Story>;
+  updateStory(id: string, story: Partial<InsertStory>): Promise<Story | undefined>;
+  deleteStory(id: string): Promise<void>;
 
   // Volunteers
   getVolunteersByCampaign(campaignId: string): Promise<Volunteer[]>;
   getVolunteers(limit?: number): Promise<Volunteer[]>;
   createVolunteer(volunteer: InsertVolunteer): Promise<Volunteer>;
+  updateVolunteerStatus(id: string, status: string): Promise<void>;
+  deleteVolunteer(id: string): Promise<void>;
 
   // Aid Requests
   getAidRequests(limit?: number): Promise<AidRequest[]>;
@@ -300,6 +306,30 @@ export class DatabaseStorage implements IStorage {
     return campaign;
   }
 
+  async updateCampaign(id: string, partialCampaign: Partial<InsertCampaign>): Promise<Campaign | undefined> {
+    if (this.isDbAvailable()) {
+      const result = await db
+        .update(campaigns)
+        .set(partialCampaign)
+        .where(eq(campaigns.id, id))
+        .returning();
+      return result[0];
+    }
+    const existing = this.memCampaigns.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...partialCampaign };
+    this.memCampaigns.set(id, updated);
+    return updated;
+  }
+
+  async deleteCampaign(id: string): Promise<void> {
+    if (this.isDbAvailable()) {
+      await db.delete(campaigns).where(eq(campaigns.id, id));
+    } else {
+      this.memCampaigns.delete(id);
+    }
+  }
+
   async updateCampaignRaisedAmount(id: string, amount: number): Promise<void> {
     if (this.isDbAvailable()) {
       await db
@@ -419,6 +449,30 @@ export class DatabaseStorage implements IStorage {
     return story;
   }
 
+  async updateStory(id: string, partialStory: Partial<InsertStory>): Promise<Story | undefined> {
+    if (this.isDbAvailable()) {
+      const result = await db
+        .update(stories)
+        .set(partialStory)
+        .where(eq(stories.id, id))
+        .returning();
+      return result[0];
+    }
+    const existing = this.memStories.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...partialStory } as Story;
+    this.memStories.set(id, updated);
+    return updated;
+  }
+
+  async deleteStory(id: string): Promise<void> {
+    if (this.isDbAvailable()) {
+      await db.delete(stories).where(eq(stories.id, id));
+    } else {
+      this.memStories.delete(id);
+    }
+  }
+
   // Volunteers
   async getVolunteersByCampaign(campaignId: string): Promise<Volunteer[]> {
     if (this.isDbAvailable()) {
@@ -461,6 +515,29 @@ export class DatabaseStorage implements IStorage {
     };
     this.memVolunteers.set(volunteer.id, volunteer);
     return volunteer;
+  }
+
+  async updateVolunteerStatus(id: string, status: string): Promise<void> {
+    if (this.isDbAvailable()) {
+      await db
+        .update(volunteers)
+        .set({ status })
+        .where(eq(volunteers.id, id));
+    } else {
+      const volunteer = this.memVolunteers.get(id);
+      if (volunteer) {
+        volunteer.status = status as "pending" | "approved" | "rejected";
+        this.memVolunteers.set(id, volunteer);
+      }
+    }
+  }
+
+  async deleteVolunteer(id: string): Promise<void> {
+    if (this.isDbAvailable()) {
+      await db.delete(volunteers).where(eq(volunteers.id, id));
+    } else {
+      this.memVolunteers.delete(id);
+    }
   }
 
   // Aid Requests

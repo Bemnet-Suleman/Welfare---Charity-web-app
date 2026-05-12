@@ -60,7 +60,7 @@ export const stories = pgTable("stories", {
 
 export const volunteers = pgTable("volunteers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").references(() => users.id),
   campaignId: varchar("campaign_id").references(() => campaigns.id),
   skills: jsonb("skills").$type<string[]>(),
   availability: text("availability"),

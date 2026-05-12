@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, Target } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import { useParams } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 
 type User = {
@@ -19,12 +20,13 @@ const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1640622656785-4fddbd3b4
 
 export default function CreateCampaign() {
   const { t } = useTranslation();
+  const params = useParams();
+  const isEditing = !!params.id;
   const [category, setCategory] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("");
   const [duration, setDuration] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [location, setLocation] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -35,12 +37,36 @@ export default function CreateCampaign() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: campaignData, isLoading: campaignLoading } = useQuery({
+    queryKey: ["campaign", params.id],
+    queryFn: () => apiRequest("GET", `/api/campaigns/${params.id}`).then((res) => res.json()),
+    enabled: isEditing,
+  });
+
   const user = userData as { id: string; role?: string } | undefined;
   const isAdmin = user?.role === "admin";
 
+  useEffect(() => {
+    if (campaignData) {
+      setTitle(campaignData.title || "");
+      setDescription(campaignData.description || "");
+      setGoal(campaignData.goalAmount || "");
+      setCategory(campaignData.category || "");
+      setLocation(campaignData.location || "");
+      // Calculate duration from endDate - startDate
+      if (campaignData.startDate && campaignData.endDate) {
+        const start = new Date(campaignData.startDate);
+        const end = new Date(campaignData.endDate);
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setDuration(diffDays.toString());
+      }
+    }
+  }, [campaignData]);
+
   const handleSubmit = async () => {
     if (!isAdmin) {
-      alert(t("Only Charity Admin can create campaigns directly. Your campaign request will be queued for admin approval."));
+      alert(t("Only Charity Admin can create campaigns directly."));
       return;
     }
 
@@ -52,35 +78,49 @@ export default function CreateCampaign() {
     setIsSubmitting(true);
 
     try {
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("goalAmount", goal);
+      formData.append("category", category || "other");
+      formData.append("location", location);
+
       const startDate = new Date();
       const endDate = new Date(Date.now() + Number(duration || 30) * 24 * 60 * 60 * 1000);
+      formData.append("startDate", startDate.toISOString());
+      formData.append("endDate", endDate.toISOString());
 
-      await apiRequest("POST", "/api/campaigns", {
-        title,
-        description,
-        image: imageUrl || "https://images.unsplash.com/photo-1640622656785-4fddbd3b4c6a?w=800&q=80",
-        category: category || "other",
-        goalAmount: goal,
-        startDate,
-        endDate,
-        location,
-      });
+      const imageInput = document.getElementById("image") as HTMLInputElement;
+      if (imageInput?.files?.[0]) {
+        formData.append("image", imageInput.files[0]);
+      } else {
+        formData.append("image", DEFAULT_IMAGE);
+      }
 
-      alert(t("Campaign submitted successfully."));
-      setTitle("");
-      setDescription("");
-      setGoal("");
-      setDuration("");
-      setImageUrl("");
-      setCategory("");
-      setLocation("");
+      if (isEditing) {
+        await apiRequest("PUT", `/api/campaigns/${params.id}`, formData);
+        alert(t("Campaign updated successfully."));
+      } else {
+        await apiRequest("POST", "/api/campaigns", formData);
+        alert(t("Campaign submitted successfully."));
+        setTitle("");
+        setDescription("");
+        setGoal("");
+        setDuration("");
+        setCategory("");
+        setLocation("");
+      }
     } catch (err) {
       console.error(err);
-      alert(t("Failed to submit campaign."));
+      alert(t(isEditing ? "Failed to update campaign." : "Failed to submit campaign."));
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (userLoading || (isEditing && campaignLoading)) {
+    return <div className="min-h-screen py-24 text-center">{t("Loading...")}</div>;
+  }
 
   return (
     <div className="min-h-screen py-12">
@@ -88,14 +128,14 @@ export default function CreateCampaign() {
         <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <Target className="h-16 w-16 text-primary mx-auto mb-4" />
           <h1 className="text-4xl md:text-5xl font-bold mb-4 font-['Poppins']">
-            {t("Create a Campaign")}
+            {isEditing ? t("Edit Campaign") : t("Create a Campaign")}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {t("Share your story and raise funds for your cause. Every campaign makes a difference.")}
+            {isEditing ? t("Update your campaign details and settings.") : t("Share your story and raise funds for your cause. Every campaign makes a difference.")}
           </p>
           {!isAdmin && (
             <p className="text-sm text-red-500 mt-2">
-              {t("Only the Charity Admin can finalize campaign creation; your request will be reviewed by them.")}
+              {t("Only the Charity Admin can create campaigns directly.")}
             </p>
           )}
         </div>
@@ -147,7 +187,7 @@ export default function CreateCampaign() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label htmlFor="goal" className="text-lg font-semibold">{t("Funding Goal ($)")}</Label>
+                <Label htmlFor="goal" className="text-lg font-semibold">{t("Funding Goal (Birr)")}</Label>
                 <Input
                   id="goal"
                   type="number"
@@ -174,16 +214,15 @@ export default function CreateCampaign() {
             </div>
 
             <div>
-              <Label htmlFor="imageUrl" className="text-lg font-semibold">{t("Featured Image URL")}</Label>
+              <Label htmlFor="image" className="text-lg font-semibold">{t("Campaign Image")}</Label>
               <Input
-                id="imageUrl"
-                value={imageUrl}
-                onChange={(event) => setImageUrl(event.target.value)}
-                placeholder="https://example.com/campaign-image.jpg"
+                id="image"
+                type="file"
+                accept="image/*"
                 className="mt-2"
-                data-testid="input-image-url"
+                data-testid="input-image-file"
               />
-              <p className="text-sm text-muted-foreground mt-2">{t("Enter image URL or keep default if not provided.")}</p>
+              <p className="text-sm text-muted-foreground mt-2">{t("Upload a campaign image file.")}</p>
             </div>
 
             <div>
@@ -198,30 +237,14 @@ export default function CreateCampaign() {
               />
             </div>
 
-            <div>
-              <Label className="text-lg font-semibold block mb-2">{t("Supporting Documents (Optional)")}</Label>
-              <Button variant="outline" className="w-full" data-testid="button-upload-documents">
-                <Upload className="h-4 w-4 mr-2" />
-                {t("Upload Documents")}
-              </Button>
-              <p className="text-sm text-muted-foreground mt-2">{t("Verification documents, permits, or supporting materials")}</p>
-            </div>
-
-            <div className="flex gap-4 pt-6">
-              <Button 
-                variant="outline" 
-                className="flex-1"
-                data-testid="button-save-draft"
-              >
-                {t("Save as Draft")}
-              </Button>
-              <Button 
-                className="flex-1 bg-primary hover:bg-primary text-primary-foreground border border-primary-border"
+            <div className="pt-6">
+              <Button
+                className="w-full bg-primary hover:bg-primary text-primary-foreground border border-primary-border"
                 onClick={handleSubmit}
-                disabled={!isAdmin}
+                disabled={!isAdmin || isSubmitting}
                 data-testid="button-submit-campaign"
               >
-                {isAdmin ? t("Submit for Review") : t("Request campaign approval")}
+                {isSubmitting ? t("Creating...") : t("Create Campaign")}
               </Button>
             </div>
           </div>

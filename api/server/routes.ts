@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import passport from "passport";
 import { storage } from "./storage";
 import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema } from "@shared/schema";
+import type { InsertCampaign, InsertStory } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import multer from "multer";
@@ -194,13 +195,76 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
     res.json({ ...campaign, organizer: null });
   });
 
-  app.post("/api/campaigns", async (req, res) => {
+  app.post("/api/campaigns", upload.single("image"), async (req, res) => {
     try {
-      const incoming = insertCampaignSchema.parse(req.body);
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const currentUser = req.user as unknown as { role?: string };
+      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const campaignData: any = { ...req.body };
+      if (req.file) {
+        campaignData.image = `/uploads/${req.file.filename}`;
+      }
+
+      const incoming = insertCampaignSchema.parse(campaignData);
       const campaign = await storage.createCampaign(incoming);
       res.json(campaign);
     } catch (error) {
+      console.error("Campaign creation error:", error);
       res.status(400).json({ error: "Invalid campaign data" });
+    }
+  });
+
+  app.put("/api/campaigns/:id", upload.single("image"), async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const currentUser = req.user as unknown as { role?: string };
+      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const campaign = await storage.getCampaign(req.params.id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      const updateData: Partial<InsertCampaign> = { ...req.body };
+      if (req.file) {
+        updateData.image = `/uploads/${req.file.filename}`;
+      }
+
+      const updated = await storage.updateCampaign(req.params.id, updateData);
+      res.json(updated);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid campaign data" });
+    }
+  });
+
+  app.delete("/api/campaigns/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const currentUser = req.user as unknown as { role?: string };
+      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const campaign = await storage.getCampaign(req.params.id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      await storage.deleteCampaign(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete campaign" });
     }
   });
 
@@ -293,7 +357,7 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
         },
         body: JSON.stringify({
           amount: Number(amount),
-          currency: "USD",
+          currency: "ETB",
           email,
           first_name: firstName || "",
           last_name: lastName || "",
@@ -450,10 +514,86 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
     }
   });
 
+  app.put("/api/stories/:id", upload.single("image"), async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const currentUser = req.user as unknown as { role?: string };
+      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const story = await storage.getStory(req.params.id);
+      if (!story) {
+        return res.status(404).json({ error: "Story not found" });
+      }
+
+      const updateData: Partial<InsertStory> = { ...req.body };
+      if (req.file) {
+        updateData.image = `/uploads/${req.file.filename}`;
+      }
+
+      const updated = await storage.updateStory(req.params.id, updateData);
+      res.json(updated);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid story data" });
+    }
+  });
+
+  app.delete("/api/stories/:id", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const currentUser = req.user as unknown as { role?: string };
+      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const story = await storage.getStory(req.params.id);
+      if (!story) {
+        return res.status(404).json({ error: "Story not found" });
+      }
+
+      await storage.deleteStory(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete story" });
+    }
+  });
+
   // Volunteers
   app.get("/api/campaigns/:id/volunteers", async (req, res) => {
     const volunteers = await storage.getVolunteersByCampaign(req.params.id);
     res.json(volunteers);
+  });
+
+  app.get("/api/volunteers", async (req, res) => {
+    const currentUser = req.user as unknown as { role?: string } | undefined;
+    if (!currentUser || !["admin", "system_admin"].includes(currentUser.role || "")) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+    const volunteers = await storage.getVolunteers(limit);
+    res.json(volunteers);
+  });
+
+  app.put("/api/volunteers/:id/status", async (req, res) => {
+    const currentUser = req.user as unknown as { role?: string } | undefined;
+    if (!currentUser || !["admin", "system_admin"].includes(currentUser.role || "")) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const { status } = req.body;
+      if (!status || !["pending", "approved", "rejected"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      await storage.updateVolunteerStatus(req.params.id, status);
+      res.json({ message: "Volunteer status updated" });
+    } catch (error) {
+      res.status(500).json({ error: "Unable to update volunteer status" });
+    }
   });
 
   // Statistics
@@ -474,6 +614,19 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
       res.json(volunteer);
     } catch (error) {
       res.status(400).json({ error: "Invalid volunteer data" });
+    }
+  });
+
+  app.delete("/api/volunteers/:id", async (req, res) => {
+    try {
+      const currentUser = req.user as unknown as { role?: string } | undefined;
+      if (!currentUser || !["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      await storage.deleteVolunteer(req.params.id);
+      res.json({ message: "Volunteer deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Unable to delete volunteer" });
     }
   });
 
@@ -509,12 +662,18 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
     }
   });
 
-  app.post("/api/aid-requests", async (req, res) => {
+  app.post("/api/aid-requests", upload.array('documents'), async (req, res) => {
     try {
-      const aidRequestData = insertAidRequestSchema.parse(req.body);
-      const aidRequest = await storage.createAidRequest(aidRequestData);
+      const documents = req.files ? (req.files as Express.Multer.File[]).map(file => `/uploads/${file.filename}`) : [];
+      const aidRequestData = {
+        ...req.body,
+        documents,
+      };
+      const parsedData = insertAidRequestSchema.parse(aidRequestData);
+      const aidRequest = await storage.createAidRequest(parsedData);
       res.json(aidRequest);
     } catch (error) {
+      console.error('Aid request creation error:', error);
       res.status(400).json({ error: "Invalid aid request data" });
     }
   });

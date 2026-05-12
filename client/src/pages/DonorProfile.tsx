@@ -120,18 +120,26 @@ export default function DonorProfile() {
 
     try {
       const formData = new FormData();
-      formData.append('username', editFormData.username);
-      formData.append('fullName', editFormData.fullName);
-      formData.append('email', editFormData.email);
-
-      if (avatarFile) {
-        formData.append('avatar', avatarFile);
-      } else if (editFormData.avatar) {
-        formData.append('avatar', editFormData.avatar);
+      
+      // Append only non-empty fields
+      if (editFormData.username?.trim()) {
+        formData.append('username', editFormData.username.trim());
+      }
+      if (editFormData.fullName?.trim()) {
+        formData.append('fullName', editFormData.fullName.trim());
+      }
+      if (editFormData.email?.trim()) {
+        formData.append('email', editFormData.email.trim());
+      }
+      if (editFormData.password?.trim()) {
+        formData.append('password', editFormData.password.trim());
       }
 
-      if (editFormData.password) {
-        formData.append('password', editFormData.password);
+      // Handle avatar: prefer new file, otherwise keep existing URL
+      if (avatarFile) {
+        formData.append('avatar', avatarFile);
+      } else if (user.avatar) {
+        formData.append('avatar', user.avatar);
       }
 
       const response = await fetch(`/api/users/${user.id}`, {
@@ -141,11 +149,13 @@ export default function DonorProfile() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: Failed to update profile`);
       }
 
       const updated = await response.json();
 
+      // Update query cache with new user data
       queryClient.setQueryData(["auth/me"], updated.user);
       queryClient.invalidateQueries({ queryKey: ["auth/me"] });
 
@@ -157,6 +167,7 @@ export default function DonorProfile() {
       setIsEditing(false);
       setAvatarFile(null);
     } catch (error: any) {
+      console.error("Profile update error:", error);
       toast({
         title: t("donorProfile.updateFailed"),
         description: error.message || t("donorProfile.couldNotUpdate"),
@@ -321,7 +332,7 @@ export default function DonorProfile() {
                 <DollarSign className="h-6 w-6 text-chart-1" />
               </div>
             </div>
-            <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-total-donated">${totalDonated.toLocaleString()}</p>
+            <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-total-donated">{totalDonated.toLocaleString()} Birr</p>
             <p className="text-sm text-muted-foreground">{t("donorProfile.totalDonated")}</p>
           </Card>
 
@@ -382,7 +393,7 @@ export default function DonorProfile() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold font-['Space_Grotesk']">${donation.amount.toLocaleString()}</p>
+                        <p className="font-semibold font-['Space_Grotesk']">{donation.amount.toLocaleString()} Birr</p>
                         <Badge className="bg-secondary/10 text-secondary border-secondary/20 mt-1">{donation.status}</Badge>
                       </div>
                     </div>
@@ -415,8 +426,8 @@ export default function DonorProfile() {
 
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="font-medium">{t("donorProfile.yourContribution")}: ${campaign.donated.toLocaleString()}</span>
-                        <span className="text-muted-foreground">{t("donorProfile.goal")}: ${campaign.goal.toLocaleString()}</span>
+                        <span className="font-medium">{t("donorProfile.yourContribution")}: {campaign.donated.toLocaleString()} Birr</span>
+                        <span className="text-muted-foreground">{t("donorProfile.goal")}: {campaign.goal.toLocaleString()} Birr</span>
                       </div>
                       <Progress value={campaign.progress} className="h-2" />
                       <p className="text-sm text-secondary">{campaign.progress}% {t("donorProfile.funded")}</p>

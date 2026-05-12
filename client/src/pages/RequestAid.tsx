@@ -5,25 +5,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, HandHeart } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 
 export default function RequestAid() {
   const { t } = useTranslation();
-  const [aidType, setAidType] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [location, setLocation] = useState("");
-  const [situation, setSituation] = useState("");
-  const [amount, setAmount] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
   const [urgency, setUrgency] = useState("");
+  const [location, setLocation] = useState("");
+  const [documents, setDocuments] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: authData, isLoading: authLoading } = useQuery({
+    queryKey: ["auth/me"],
+    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json()),
+  });
 
   const handleSubmit = async () => {
-    if (!aidType || !firstName || !lastName || !email || !location || !situation || !amount || !urgency) {
+    if (!title || !description || !category || !urgency || !location) {
       alert(t("Please fill in all required fields before submitting."));
       return;
     }
@@ -31,33 +36,46 @@ export default function RequestAid() {
     setIsSubmitting(true);
 
     try {
-      await apiRequest("POST", "/api/aid-requests", {
-        aidType,
-        firstName,
-        lastName,
-        email,
-        phone,
-        location,
-        situation,
-        amount: Number(amount),
-        urgency,
+      const formData = new FormData();
+      formData.append("userId", user.id);
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("category", category);
+      formData.append("urgency", urgency);
+      formData.append("location", location);
+
+      documents.forEach((file, index) => {
+        formData.append("documents", file);
       });
+
+      await apiRequest("POST", "/api/aid-requests", formData, {
+        headers: {
+          // Don't set Content-Type, let the browser set it with boundary for FormData
+        },
+      });
+
       alert(t("Aid request submitted successfully."));
-      setAidType("");
-      setFirstName("");
-      setLastName("");
-      setEmail("");
-      setPhone("");
-      setLocation("");
-      setSituation("");
-      setAmount("");
+      setTitle("");
+      setDescription("");
+      setCategory("");
       setUrgency("");
+      setLocation("");
+      setDocuments([]);
     } catch (err) {
       console.error(err);
       alert(t("Failed to submit aid request. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setDocuments(prev => [...prev, ...files]);
+  };
+
+  const removeFile = (index: number) => {
+    setDocuments(prev => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -74,9 +92,14 @@ export default function RequestAid() {
         <Card className="p-8">
           <div className="space-y-6">
             <div>
-              <Label htmlFor="requestType" className="text-lg font-semibold">{t("Type of Assistance Needed")}</Label>
-              <Select value={aidType} onValueChange={setAidType}>
-                <SelectTrigger className="mt-2" data-testid="select-aid-type">
+              <Label htmlFor="title" className="text-lg font-semibold">{t("Request Title")}</Label>
+              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("Brief title for your aid request")} className="mt-2" data-testid="input-title" />
+            </div>
+
+            <div>
+              <Label htmlFor="category" className="text-lg font-semibold">{t("Type of Assistance Needed")}</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="mt-2" data-testid="select-category">
                   <SelectValue placeholder={t("Select type of aid")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -90,42 +113,14 @@ export default function RequestAid() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="firstName">{t("First Name")}</Label>
-                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder={t("John")} data-testid="input-first-name" />
-              </div>
-              <div>
-                <Label htmlFor="lastName">{t("Last Name")}</Label>
-                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder={t("Doe")} data-testid="input-last-name" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="email">{t("Email Address")}</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="john@example.com" data-testid="input-email" />
-              </div>
-              <div>
-                <Label htmlFor="phone">{t("Phone Number")}</Label>
-                <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+251 900 000000" data-testid="input-phone" />
-              </div>
+            <div>
+              <Label htmlFor="description" className="text-lg font-semibold">{t("Describe Your Situation")}</Label>
+              <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("Please describe your current situation and why you need assistance...")} className="mt-2 min-h-[150px]" data-testid="textarea-description" />
             </div>
 
             <div>
               <Label htmlFor="location">{t("Location")}</Label>
               <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("City, Region, Country")} data-testid="input-location" />
-            </div>
-
-            <div>
-              <Label htmlFor="situation" className="text-lg font-semibold">{t("Describe Your Situation")}</Label>
-              <Textarea id="situation" value={situation} onChange={(e) => setSituation(e.target.value)} placeholder={t("Please describe your current situation and why you need assistance...")} className="mt-2 min-h-[150px]" data-testid="textarea-situation" />
-            </div>
-
-            <div>
-              <Label htmlFor="amount" className="text-lg font-semibold">{t("Estimated Amount Needed ($)")}</Label>
-              <Input id="amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="5000" className="mt-2" data-testid="input-amount" />
-              <p className="text-sm text-muted-foreground mt-2">{t("Provide an estimate if applicable")}</p>
             </div>
 
             <div>
@@ -135,22 +130,55 @@ export default function RequestAid() {
                   <SelectValue placeholder={t("Select urgency level")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="critical">{t("Critical (Immediate need)")}</SelectItem>
-                  <SelectItem value="urgent">{t("Urgent (Within 1 week)")}</SelectItem>
-                  <SelectItem value="moderate">{t("Moderate (Within 1 month)")}</SelectItem>
                   <SelectItem value="low">{t("Low (No immediate deadline)")}</SelectItem>
+                  <SelectItem value="medium">{t("Medium (Within 1 month)")}</SelectItem>
+                  <SelectItem value="high">{t("High (Within 1 week)")}</SelectItem>
+                  <SelectItem value="emergency">{t("Emergency (Immediate need)")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
               <Label className="text-lg font-semibold block mb-2">{t("Supporting Documents")}</Label>
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer hover-elevate">
+              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors">
                 <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground mb-1">{t("Upload supporting documents")}</p>
-                <p className="text-sm text-muted-foreground">{t("Medical reports, ID, proof of situation (Optional but recommended)")}</p>
-                <input type="file" multiple className="hidden" data-testid="input-documents" />
+                <p className="text-sm text-muted-foreground mb-4">{t("Medical reports, ID, proof of situation (Optional but recommended)")}</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  data-testid="input-documents"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {t("Choose Files")}
+                </Button>
               </div>
+              {documents.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm font-medium">{t("Selected files:")}</p>
+                  {documents.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 border rounded">
+                      <span className="text-sm">{file.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFile(index)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-muted/50 p-4 rounded-lg">

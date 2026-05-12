@@ -8,11 +8,21 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "wouter";
+import { Card } from "@/components/ui/card";
+
 export default function Volunteer() {
   const {t} = useTranslation();
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const { toast } = useToast();
+
+  // Check if user is authenticated
+  const { data: authData, isLoading: authLoading } = useQuery({
+    queryKey: ["auth/me"],
+    queryFn: () => apiRequest("GET", "/api/auth/me").then((r) => r.json()),
+  });
 
   const { data: campaigns, isLoading, error } = useQuery({
     queryKey: ["/api/campaigns", searchQuery, categoryFilter],
@@ -25,9 +35,19 @@ export default function Volunteer() {
   });
 
   const handleApply = async (campaignId: string) => {
+    if (!authData?.user?.id) {
+      toast({
+        title: t("Authentication Required"),
+        description: t("Please log in to apply for volunteer opportunities."),
+        variant: "destructive",
+      });
+      navigate("/login");
+      return;
+    }
+
     try {
       await apiRequest("POST", "/api/volunteers", {
-        userId: null, // anonymous
+        userId: authData.user.id,
         campaignId,
         skills: [],
         availability: "",
@@ -60,6 +80,39 @@ export default function Volunteer() {
       spotsLeft: 0,
       onApply: () => handleApply(c.id),
     }));
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen py-12">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          {t("Loading...")}
+        </div>
+      </div>
+    );
+  }
+
+  if (!authData?.user) {
+    return (
+      <div className="min-h-screen py-12">
+        <div className="max-w-3xl mx-auto px-4">
+          <Card className="p-10 text-center">
+            <h1 className="text-3xl font-bold mb-4">{t("Sign In Required")}</h1>
+            <p className="text-muted-foreground mb-6">
+              {t("You need to be logged in to apply for volunteer opportunities. Please sign in or create an account to get started.")}
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <Button onClick={() => navigate("/login")}>
+                {t("Log In")}
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/register")}>
+                {t("Create Account")}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-12">

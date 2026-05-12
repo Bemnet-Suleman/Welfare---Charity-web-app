@@ -263,16 +263,16 @@ export default function Donate() {
                       onClick={() => setValue("amount", String(amt))}
                       data-testid={`button-amount-${amt}`}
                     >
-                      ${amt}
+                      {amt} Birr
                     </Button>
                   ))}
                 </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">Birr</span>
                   <Input
                     type="number"
                     placeholder={t("Custom amount")}
-                    className="pl-8"
+                    className="pl-12"
                     {...register("amount")}
                     data-testid="input-custom-amount"
                   />
@@ -380,7 +380,7 @@ export default function Donate() {
                 <Heart className="h-5 w-5 mr-2 fill-current" />
                 {(isSubmitting || isVerifying)
                   ? t("Processing...")
-                  : `${t("Complete Donation of") } $${watchedAmount || "0"}`}
+                  : `${t("Complete Donation of") } ${watchedAmount || "0"} Birr`}
               </Button>
             </div>
           </Card>
@@ -412,7 +412,7 @@ export default function Donate() {
             </Card>
 
             <Card className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10">
-              <h3 className="font-semibold mb-2">{t("Your donation can provide")}: ${watchedAmount || "0"}</h3>
+              <h3 className="font-semibold mb-2">{t("Your donation can provide")}: {watchedAmount || "0"} Birr</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>• {Math.floor((parseFloat(watchedAmount || "0") / 0.5))} {t("meals for families in need")}</li>
                 <li>• {Math.floor(parseFloat(watchedAmount || "0") / 5)} {t("sets of school supplies for children")}</li>
