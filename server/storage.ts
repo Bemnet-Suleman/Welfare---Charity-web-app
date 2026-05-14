@@ -81,6 +81,7 @@ export interface IStorage {
 
   // Volunteers
   getVolunteersByCampaign(campaignId: string): Promise<Volunteer[]>;
+  getVolunteersByUser(userId: string): Promise<Volunteer[]>;
   getVolunteers(limit?: number): Promise<Volunteer[]>;
   createVolunteer(volunteer: InsertVolunteer): Promise<Volunteer>;
   updateVolunteerStatus(id: string, status: string): Promise<void>;
@@ -92,6 +93,7 @@ export interface IStorage {
   getAidRequestsByUser(userId: string): Promise<AidRequest[]>;
   createAidRequest(aidRequest: InsertAidRequest): Promise<AidRequest>;
   updateAidRequestStatus(id: string, status: string): Promise<void>;
+  deleteAidRequest(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -502,14 +504,27 @@ export class DatabaseStorage implements IStorage {
     return Array.from(this.memVolunteers.values()).slice(0, limit);
   }
 
+  async getVolunteersByUser(userId: string): Promise<Volunteer[]> {
+    if (this.isDbAvailable()) {
+      return await db
+        .select()
+        .from(volunteers)
+        .where(and(eq(volunteers.userId, userId), eq(volunteers.status, "approved")))
+        .orderBy(desc(volunteers.createdAt));
+    }
+    return Array.from(this.memVolunteers.values()).filter(
+      (volunteer) => volunteer.userId === userId && volunteer.status === "approved",
+    );
+  }
+
   async createVolunteer(insertVolunteer: InsertVolunteer): Promise<Volunteer> {
     if (this.isDbAvailable()) {
       const result = await db.insert(volunteers).values(insertVolunteer).returning();
       return result[0];
     }
     const volunteer: Volunteer = {
-      ...insertVolunteer,
       id: randomUUID(),
+      userId: insertVolunteer.userId ?? null,
       campaignId: insertVolunteer.campaignId ?? null,
       skills: (insertVolunteer.skills as string[] | undefined) ?? null,
       availability: insertVolunteer.availability ?? null,
@@ -599,6 +614,12 @@ export class DatabaseStorage implements IStorage {
         .update(aidRequests)
         .set({ status, updatedAt: new Date() })
         .where(eq(aidRequests.id, id));
+    }
+  }
+
+  async deleteAidRequest(id: string): Promise<void> {
+    if (this.isDbAvailable()) {
+      await db.delete(aidRequests).where(eq(aidRequests.id, id));
     }
   }
 

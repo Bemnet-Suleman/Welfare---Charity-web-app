@@ -45,7 +45,7 @@ export default function AdminDashboard() {
   });
 
   const { data: aidRequests = [] } = useQuery({
-    queryKey: ["aid-requests"],
+    queryKey: ["admin/aid-requests"],
     queryFn: () => apiRequest("GET", "/api/aid-requests").then((res) => res.json()),
     enabled: isAdmin,
   });
@@ -77,6 +77,51 @@ export default function AdminDashboard() {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleAidRequestStatusChange = async (requestId: string | undefined, value: string) => {
+    if (!requestId) {
+      toast({
+        title: t("Missing Request ID"),
+        description: t("Unable to update aid request status without a valid request ID."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await apiRequest("PUT", `/api/aid-requests/${requestId}/status`, { status: value });
+      toast({
+        title: t("Status Updated"),
+        description: `Request status changed to ${value}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin/aid-requests"] });
+    } catch (error: any) {
+      toast({
+        title: t("Update Failed"),
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteAidRequest = async (requestId: string | undefined, title: string) => {
+    if (!requestId) {
+      toast({
+        title: t("Missing Request ID"),
+        description: t("Unable to delete aid request without a valid request ID."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await apiRequest("DELETE", `/api/aid-requests/${requestId}`);
+      toast({ title: t("Deleted"), description: t("Aid request deleted successfully") });
+      queryClient.invalidateQueries({ queryKey: ["admin/aid-requests"] });
+    } catch (error: any) {
+      toast({ title: t("Error"), description: error.message, variant: "destructive" });
     }
   };
 
@@ -258,16 +303,28 @@ export default function AdminDashboard() {
           </Card>
 
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-3">{t("Volunteer Events")}</h2>
+            <h2 className="text-xl font-semibold mb-3">{t("Aid Requests")}</h2>
             <p className="text-sm text-muted-foreground mb-5">
-              {t("Review and approve volunteer applications.")}
+              {t("Review and manage aid requests from beneficiaries.")}
             </p>
-            <div className="flex flex-col gap-2">
-              <div className="text-sm mb-3">
-                <p className="font-medium">{(volunteers as any[]).filter((v: any) => v.status === "pending").length} {t("Pending Approvals")}</p>
-              </div>
-              <p className="text-xs text-muted-foreground">{t("Use the list below to manage volunteer applications")}</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {(aidRequests as any[]).length === 0 ? (
+                <p className="text-muted-foreground text-sm">{t("No aid requests yet")}</p>
+              ) : (
+                (aidRequests as any[]).slice(0, 5).map((request: any) => (
+                  <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{request.title}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{request.status}</p>
+                    </div>
+                    <Badge variant={request.status === "pending" ? "secondary" : request.status === "approved" ? "default" : "outline"}>
+                      {request.status}
+                    </Badge>
+                  </div>
+                ))
+              )}
             </div>
+            <p className="text-xs text-muted-foreground mt-3">{t("Use the detailed list below to manage requests")}</p>
           </Card>
         </div>
 
@@ -360,47 +417,67 @@ export default function AdminDashboard() {
 
         <div className="mt-8">
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">{t("Pending Aid Request Approvals")}</h2>
-            {(aidRequests as any[]).filter((r: any) => r.status === "pending").length === 0 ? (
-              <p className="text-muted-foreground">{t("No pending aid requests")}</p>
+            <h2 className="text-xl font-semibold mb-4">{t("Aid Request Management")}</h2>
+            {(aidRequests as any[]).length === 0 ? (
+              <p className="text-muted-foreground">{t("No aid requests")}</p>
             ) : (
               <div className="space-y-3">
-                {(aidRequests as any[]).filter((r: any) => r.status === "pending").map((request: any) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
+                {(aidRequests as any[]).map((request: any) => (
+                  <div key={request.id || request.userId || `${request.title}-${request.category}`}
+                    className="flex flex-col gap-3 p-3 border rounded-lg sm:flex-row sm:items-center sm:justify-between"
+                  >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{request.title}</p>
-                      <p className="text-xs text-muted-foreground">{request.category} - {request.urgency} urgency</p>
-                      <p className="text-xs text-muted-foreground">{request.location}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-sm truncate">{request.title}</p>
+                        {request.id ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {t("ID")}: {request.id}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-xs">
+                            {t("Missing ID")}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {request.category} • {request.urgency} • {request.location || t("Unknown location")}
+                      </p>
                     </div>
-                    <div className="flex gap-2 ml-2">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          apiRequest("PUT", `/api/aid-requests/${request.id}/status`, { status: "approved" }).then(() => {
-                            toast({
-                              title: t("Approved"),
-                              description: t("Aid request has been approved"),
-                            });
-                            queryClient.invalidateQueries({ queryKey: ["aid-requests"] });
-                          });
-                        }}
+                    <div className="flex flex-wrap gap-2 items-center ml-0 sm:ml-2">
+                      <Select
+                        value={request.status || "pending"}
+                        onValueChange={(value) => handleAidRequestStatusChange(request.id, value)}
                       >
-                        {t("Approve")}
-                      </Button>
+                        <SelectTrigger className="w-32 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">{t("Pending")}</SelectItem>
+                          <SelectItem value="under_review">{t("Under Review")}</SelectItem>
+                          <SelectItem value="approved">{t("Approved")}</SelectItem>
+                          <SelectItem value="rejected">{t("Rejected")}</SelectItem>
+                          <SelectItem value="fulfilled">{t("Fulfilled")}</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button
                         size="sm"
                         variant="destructive"
                         onClick={() => {
-                          apiRequest("PUT", `/api/aid-requests/${request.id}/status`, { status: "rejected" }).then(() => {
+                          if (!request.id) {
                             toast({
-                              title: t("Rejected"),
-                              description: t("Aid request has been rejected"),
+                              title: t("Missing Request ID"),
+                              description: t("Unable to delete aid request without a valid request ID."),
+                              variant: "destructive",
                             });
-                            queryClient.invalidateQueries({ queryKey: ["aid-requests"] });
-                          });
+                            return;
+                          }
+
+                          if (confirm(`Are you sure you want to delete "${request.title}"?`)) {
+                            handleDeleteAidRequest(request.id, request.title);
+                          }
                         }}
                       >
-                        {t("Reject")}
+                        {t("Delete")}
                       </Button>
                     </div>
                   </div>
@@ -410,7 +487,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-3">{t("Account Management")}</h2>
             <p className="text-sm text-muted-foreground mb-5">
@@ -423,42 +500,6 @@ export default function AdminDashboard() {
                   <Badge>{count}</Badge>
                 </div>
               ))}
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-3">{t("Beneficiary Requests")}</h2>
-            <p className="text-sm text-muted-foreground mb-5">
-              {t("Review pending aid requests and approve the cases that need urgent support.")}
-            </p>
-            <div className="flex flex-col gap-2">
-              <div className="text-sm mb-3">
-                <p className="font-medium">{(aidRequests as any[]).filter((r: any) => r.status === "pending").length} {t("Pending Requests")}</p>
-              </div>
-              <Button variant="outline" className="w-full" onClick={() => {
-                const requestId = prompt("Enter request ID to manage:");
-                if (requestId) {
-                  const action = prompt("Enter 'approve', 'reject', or 'fulfill':");
-                  if (action === "approve") {
-                    apiRequest("PUT", `/api/aid-requests/${requestId}/status`, { status: "approved" }).then(() => {
-                      toast({ title: t("Approved"), description: t("Aid request has been approved") });
-                      queryClient.invalidateQueries({ queryKey: ["aid-requests"] });
-                    });
-                  } else if (action === "reject") {
-                    apiRequest("PUT", `/api/aid-requests/${requestId}/status`, { status: "rejected" }).then(() => {
-                      toast({ title: t("Rejected"), description: t("Aid request has been rejected") });
-                      queryClient.invalidateQueries({ queryKey: ["aid-requests"] });
-                    });
-                  } else if (action === "fulfill") {
-                    apiRequest("PUT", `/api/aid-requests/${requestId}/status`, { status: "fulfilled" }).then(() => {
-                      toast({ title: t("Fulfilled"), description: t("Aid request has been fulfilled") });
-                      queryClient.invalidateQueries({ queryKey: ["aid-requests"] });
-                    });
-                  }
-                }
-              }}>
-                {t("Manage Requests")}
-              </Button>
             </div>
           </Card>
         </div>

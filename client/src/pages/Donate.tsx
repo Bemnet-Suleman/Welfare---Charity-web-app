@@ -14,6 +14,7 @@ import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getRoleLabel } from "@/lib/utils";
 
 const donationSchema = z.object({
   firstName: z.string().optional(),
@@ -320,7 +321,7 @@ export default function Donate() {
                   <div className="rounded-lg border p-4 bg-muted/10">
                     <p className="font-medium">{t("Logged in as")} {user?.fullName || user?.username || user?.email}</p>
                     <p className="text-sm text-muted-foreground">{user?.email ?? t("no email")}</p>
-                    <p className="text-sm mt-1">{t("Role")}: {t(user?.role || "donor")}</p>
+                    <p className="text-sm mt-1">{t("Role")}: {getRoleLabel(user?.role, t)}</p>
                     <p className="text-sm mt-1 text-muted-foreground">{t("Donation is assigned to your account automatically.")}</p>
                   </div>
                 ) : (

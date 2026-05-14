@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import passport from "passport";
 import { storage } from "./storage";
-import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema } from "@shared/schema";
+import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema, type InsertCampaign, type InsertStory } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import multer from "multer";
@@ -34,12 +34,38 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     });
   });
 
-  app.get("/api/auth/me", (req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
     if (req.user) {
-      res.json({ user: req.user });
+      const currentUser = req.user as any;
+      let isVolunteer = false;
+
+      try {
+        if (currentUser.id) {
+          const volunteerRecords = await storage.getVolunteersByUser(currentUser.id);
+          isVolunteer = volunteerRecords.some((volunteer) => volunteer.status === "approved");
+        }
+      } catch (error) {
+        console.error("Unable to determine volunteer status:", error);
+      }
+
+      res.json({ user: { ...currentUser, isVolunteer } });
     } else {
       res.status(401).json({ error: "Not authenticated" });
     }
+  });
+
+  app.get("/api/volunteers/me", async (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const currentUser = req.user as unknown as { id?: string };
+    if (!currentUser.id) {
+      return res.status(400).json({ error: "Invalid user" });
+    }
+
+    const volunteers = await storage.getVolunteersByUser(currentUser.id);
+    res.json(volunteers);
   });
 
   app.post("/api/auth/register", async (req, res) => {
@@ -202,17 +228,27 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      const campaignData: any = { ...req.body };
-      if (req.file) {
-        campaignData.image = `/uploads/${req.file.filename}`;
-      }
+      const campaignData: any = {
+        title: req.body.title,
+        description: req.body.description,
+        image: req.file ? `/uploads/${req.file.filename}` : (req.body.image || "https://images.unsplash.com/photo-1640622656785-4fddbd3b4c6a?w=800&q=80"),
+        category: req.body.category,
+        goalAmount: req.body.goalAmount,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        status: "active",
+        urgent: false,
+        location: req.body.location || null,
+      };
 
       const incoming = insertCampaignSchema.parse(campaignData);
       const campaign = await storage.createCampaign(incoming);
       res.json(campaign);
     } catch (error) {
       console.error("Campaign creation error:", error);
-      res.status(400).json({ error: "Invalid campaign data" });
+      console.error("Error details:", error instanceof Error ? error.message : error);
+      console.error("Stack:", error instanceof Error ? error.stack : "No stack");
+      res.status(400).json({ error: "Invalid campaign data", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -659,12 +695,21 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     }
   });
 
-  app.post("/api/aid-requests", async (req, res) => {
+  app.post("/api/aid-requests", upload.array("documents"), async (req, res) => {
     try {
-      const aidRequestData = insertAidRequestSchema.parse(req.body);
-      const aidRequest = await storage.createAidRequest(aidRequestData);
+      const documents = req.files ? (req.files as Express.Multer.File[]).map(file => `/uploads/${file.filename}`) : [];
+      const aidRequestData = {
+        ...req.body,
+        documents,
+      };
+      const parsedData = insertAidRequestSchema.parse(aidRequestData);
+      const aidRequest = await storage.createAidRequest(parsedData);
       res.json(aidRequest);
     } catch (error) {
+      console.error('Aid request creation error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
       res.status(400).json({ error: "Invalid aid request data" });
     }
   });

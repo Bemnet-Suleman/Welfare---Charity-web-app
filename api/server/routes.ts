@@ -205,7 +205,19 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      const campaignData: any = { ...req.body };
+      const campaignData: any = {
+        title: req.body.title,
+        description: req.body.description,
+        image: req.file ? `/uploads/${req.file.filename}` : (req.body.image || "https://images.unsplash.com/photo-1640622656785-4fddbd3b4c6a?w=800&q=80"),
+        category: req.body.category,
+        goalAmount: req.body.goalAmount,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        status: "active",
+        urgent: false,
+        location: req.body.location || null,
+      };
+
       if (req.file) {
         campaignData.image = `/uploads/${req.file.filename}`;
       }
@@ -215,7 +227,8 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
       res.json(campaign);
     } catch (error) {
       console.error("Campaign creation error:", error);
-      res.status(400).json({ error: "Invalid campaign data" });
+      console.error("Error details:", error instanceof Error ? error.message : error);
+      res.status(400).json({ error: "Invalid campaign data", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -674,6 +687,9 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
       res.json(aidRequest);
     } catch (error) {
       console.error('Aid request creation error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
       res.status(400).json({ error: "Invalid aid request data" });
     }
   });
@@ -688,6 +704,15 @@ export async function registerRoutes(app: Express, upload: any): Promise<Server>
       res.json({ message: "Status updated successfully" });
     } catch (error) {
       res.status(500).json({ error: "Unable to update aid request status" });
+    }
+  });
+
+  app.delete("/api/aid-requests/:id", async (req, res) => {
+    try {
+      await storage.deleteAidRequest(req.params.id);
+      res.json({ message: "Aid request deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Unable to delete aid request" });
     }
   });
 

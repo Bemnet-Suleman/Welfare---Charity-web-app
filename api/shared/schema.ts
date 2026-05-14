@@ -114,11 +114,32 @@ export const insertVolunteerSchema = createInsertSchema(volunteers).omit({
   createdAt: true,
 });
 
-export const insertAidRequestSchema = createInsertSchema(aidRequests).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertAidRequestSchema = createInsertSchema(aidRequests)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+    status: true, // status is server-managed, always defaults to "pending"
+  })
+  .extend({
+    userId: z.string().min(1, "User ID is required"),
+    title: z.string().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
+    description: z.string().min(10, "Description must be at least 10 characters").max(5000, "Description must be less than 5000 characters"),
+    category: z.string().refine(
+      (val) => ["medical", "education", "food", "shelter", "emergency", "other"].includes(val),
+      "Invalid aid category"
+    ),
+    urgency: z.string()
+      .refine(
+        (val) => ["low", "medium", "high", "emergency"].includes(val),
+        "Invalid urgency level"
+      )
+      .default("medium"),
+    location: z.string()
+      .min(1, "Location is required")
+      .max(255, "Location must be less than 255 characters"),
+    documents: z.array(z.string()).optional().default([]),
+  });
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;

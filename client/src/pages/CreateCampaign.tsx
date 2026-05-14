@@ -44,7 +44,7 @@ export default function CreateCampaign() {
   });
 
   const user = userData as { id: string; role?: string } | undefined;
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "system_admin";
 
   useEffect(() => {
     if (campaignData) {

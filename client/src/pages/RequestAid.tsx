@@ -22,14 +22,19 @@ export default function RequestAid() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: authData, isLoading: authLoading } = useQuery({
+  const { data: user, isLoading: authLoading } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json()),
+    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
   });
 
   const handleSubmit = async () => {
     if (!title || !description || !category || !urgency || !location) {
       alert(t("Please fill in all required fields before submitting."));
+      return;
+    }
+
+    if (!user || !user.id) {
+      alert(t("You must be logged in to submit a request."));
       return;
     }
 
@@ -44,15 +49,13 @@ export default function RequestAid() {
       formData.append("urgency", urgency);
       formData.append("location", location);
 
-      documents.forEach((file, index) => {
+      // Append files - multer will handle these with upload.array('documents')
+      documents.forEach((file) => {
         formData.append("documents", file);
       });
 
-      await apiRequest("POST", "/api/aid-requests", formData, {
-        headers: {
-          // Don't set Content-Type, let the browser set it with boundary for FormData
-        },
-      });
+      const response = await apiRequest("POST", "/api/aid-requests", formData);
+      const result = await response.json();
 
       alert(t("Aid request submitted successfully."));
       setTitle("");
@@ -62,7 +65,7 @@ export default function RequestAid() {
       setLocation("");
       setDocuments([]);
     } catch (err) {
-      console.error(err);
+      console.error("Aid request error:", err);
       alert(t("Failed to submit aid request. Please try again."));
     } finally {
       setIsSubmitting(false);

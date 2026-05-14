@@ -88,6 +88,7 @@ export interface IStorage {
   getAidRequestsByUser(userId: string): Promise<AidRequest[]>;
   createAidRequest(aidRequest: InsertAidRequest): Promise<AidRequest>;
   updateAidRequestStatus(id: string, status: string): Promise<void>;
+  deleteAidRequest(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -95,6 +96,7 @@ export class DatabaseStorage implements IStorage {
   private memCampaigns: Map<string, Campaign> = new Map();
   private memStories: Map<string, Story> = new Map();
   private memVolunteers: Map<string, Volunteer> = new Map();
+  private memAidRequests: Map<string, AidRequest> = new Map();
 
   constructor() {
     this.seedData();
@@ -504,8 +506,8 @@ export class DatabaseStorage implements IStorage {
       return result[0];
     }
     const volunteer: Volunteer = {
-      ...insertVolunteer,
       id: randomUUID(),
+      userId: insertVolunteer.userId ?? null,
       campaignId: insertVolunteer.campaignId ?? null,
       skills: (insertVolunteer.skills as string[] | undefined) ?? null,
       availability: insertVolunteer.availability ?? null,
@@ -595,7 +597,20 @@ export class DatabaseStorage implements IStorage {
         .update(aidRequests)
         .set({ status, updatedAt: new Date() })
         .where(eq(aidRequests.id, id));
+      return;
     }
+    const existing = this.memAidRequests.get(id);
+    if (existing) {
+      this.memAidRequests.set(id, { ...existing, status, updatedAt: new Date() });
+    }
+  }
+
+  async deleteAidRequest(id: string): Promise<void> {
+    if (this.isDbAvailable()) {
+      await db.delete(aidRequests).where(eq(aidRequests.id, id));
+      return;
+    }
+    this.memAidRequests.delete(id);
   }
 
   // statistics aggregation

@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
+import { getRoleLabel } from "@/lib/utils";
 
 interface DonationRecord {
   id: string;
@@ -95,6 +96,22 @@ export default function DonorProfile() {
   });
 
   const donations = donationsData as DonationRecord[];
+
+  const { data: volunteerData = [], isLoading: volunteerLoading } = useQuery({
+    queryKey: ["volunteers", "me"],
+    queryFn: () => apiRequest("GET", "/api/volunteers/me").then((res) => res.json()),
+    enabled: !!userId,
+    retry: 1,
+  });
+
+  const isVolunteerUser = Array.isArray(volunteerData) && volunteerData.some((volunteer: any) => volunteer.status === "approved");
+
+  const profileRoles: string[] = Array.from(
+    new Set([
+      user?.role || "donor",
+      isVolunteerUser ? "volunteer" : null,
+    ].filter(Boolean) as string[]),
+  );
 
   const totalDonated = donations.reduce((sum, d) => sum + Number(d.amount), 0);
   const campaignsSupported = new Set(donations.map((d) => d.campaignId)).size;
@@ -192,7 +209,7 @@ export default function DonorProfile() {
       ]),
   ).values()) as Campaign[];
 
-  if (userLoading || donationsLoading) {
+  if (userLoading || donationsLoading || volunteerLoading) {
     return <div className="text-center py-24">{t("donorProfile.loadingProfile")}</div>;
   }
 
@@ -222,8 +239,11 @@ export default function DonorProfile() {
               </p>
 
               <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                <Badge variant="secondary" className="gap-1">{isAdmin ? t("donorProfile.charityAdmin") : isOrganizer ? t("donorProfile.organization") : t("donorProfile.donor")}</Badge>
-                <Badge variant="secondary" className="gap-1">{t(user.role || "donor")}</Badge>
+                {profileRoles.map((role) => (
+                  <Badge key={role} variant="secondary" className="gap-1">
+                    {getRoleLabel(role, t)}
+                  </Badge>
+                ))}
                 <Badge variant="secondary" className="gap-1">{campaignsSupported} {t("donorProfile.donations")}</Badge>
               </div>
             </div>

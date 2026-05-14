@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getRoleLabel } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,8 +28,18 @@ export function Header() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const user = userData as { id: string; username: string; fullName?: string; avatar?: string; role?: string } | undefined;
+  const user = userData as { id: string; username: string; fullName?: string; avatar?: string; role?: string; isVolunteer?: boolean } | undefined;
   const isLoggedIn = Boolean(user);
+
+  const profileRoles = new Set<string>();
+  if (user?.role) profileRoles.add(user.role);
+  if (user?.isVolunteer) profileRoles.add("volunteer");
+  const profileRoleLabel =
+    profileRoles.size > 0
+      ? Array.from(profileRoles)
+          .map((role) => getRoleLabel(role, t))
+          .join(" • ")
+      : getRoleLabel(user?.role, t);
 
   const toggleLanguage = () => {
     const newLang = i18n.language === 'en' ? 'am' : 'en';
@@ -89,7 +100,7 @@ export function Header() {
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">{user?.fullName || user?.username}</p>
                         <p className="text-xs leading-none text-muted-foreground">
-                          {user?.role === 'admin' ? t('Admin') : user?.role === 'organizer' ? t('Organizer') : t('Donor')}
+                          {profileRoleLabel}
                         </p>
                       </div>
                     </DropdownMenuLabel>
