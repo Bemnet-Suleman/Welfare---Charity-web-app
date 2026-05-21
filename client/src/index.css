@@ -347,3 +347,10 @@
     inset: -1px;
   }
 }
+
+.hero-image {
+  background-size: cover;
+  background-position: center;
+  will-change: opacity, transform, filter;
+  filter: brightness(1.08) saturate(1.12) contrast(1.05);
+}

@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   role: text("role").default("donor").notNull(), // donor, volunteer, beneficiary, admin, system_admin
   avatar: text("avatar"),
   verified: boolean("verified").default(false),
+  blocked: boolean("blocked").default(false),
+  verificationToken: text("verification_token"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

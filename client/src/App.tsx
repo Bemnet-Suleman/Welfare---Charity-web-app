@@ -19,6 +19,7 @@ import RequestAid from "@/pages/RequestAid";
 import DonorProfile from "@/pages/DonorProfile";
 import CampaignDetail from "@/pages/CampaignDetail";
 import AdminDashboard from "@/pages/AdminDashboard";
+import VerifyEmail from "@/pages/VerifyEmail";
 import NotFound from "@/pages/not-found";
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/profile" component={DonorProfile} />
       <Route path="/campaign/:id" component={CampaignDetail} />
+      <Route path="/verify-email/:token" component={VerifyEmail} />
       <Route component={NotFound} />
     </Switch>
   );

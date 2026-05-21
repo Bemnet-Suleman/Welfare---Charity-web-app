@@ -30,6 +30,7 @@ export function Header() {
 
   const user = userData as { id: string; username: string; fullName?: string; avatar?: string; role?: string; isVolunteer?: boolean } | undefined;
   const isLoggedIn = Boolean(user);
+  const isBeneficiary = user?.role === "beneficiary";
 
   const profileRoles = new Set<string>();
   if (user?.role) profileRoles.add(user.role);
@@ -49,7 +50,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 backdrop-blur-lg bg-background/80 border-b border-border" role="banner">
       <div className="max-w-7xl mx-auto px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-3 md:flex-row items-center justify-between">
           <Link href="/" className="flex items-center gap-2 hover-elevate px-3 py-2 rounded-md transition-all">
             <Heart className="h-6 w-6 text-accent fill-accent" />
             <span className="text-xl font-bold font-['Poppins']">{t("Welfare")}</span>
@@ -157,7 +158,7 @@ export function Header() {
         </div>
 
         {mobileMenuOpen && (
-          <nav className="md:hidden mt-4 pb-4 flex flex-col gap-2 animate-in slide-in-from-top-2 duration-200">
+          <nav className="md:hidden mt-4 pb-4 flex flex-col gap-3 animate-in slide-in-from-top-2 duration-200">
             <Link href="/campaigns">
               <Button variant="ghost" className="w-full justify-start" data-testid="link-campaigns-mobile">
                 {t("Campaigns")}
@@ -187,6 +188,42 @@ export function Header() {
                 {t("Donate Now")}
               </Button>
             </Link>
+            {isLoggedIn ? (
+              <div className="rounded-2xl border border-border bg-background/90 p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={user?.avatar} alt={user?.fullName || user?.username} />
+                    <AvatarFallback>{(user?.fullName || user?.username || "U")[0]}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{user?.fullName || user?.username}</p>
+                    <p className="text-xs text-muted-foreground truncate">{profileRoleLabel}</p>
+                  </div>
+                </div>
+                <Link href="/profile">
+                  <Button className="w-full" data-testid="button-profile-mobile">{t("Profile")}</Button>
+                </Link>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={async () => {
+                    await apiRequest("POST", "/api/auth/logout");
+                    window.location.reload();
+                  }}
+                >
+                  {t("Logout")}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Link href="/login">
+                  <Button className="w-full" data-testid="button-login-mobile">{t("Login")}</Button>
+                </Link>
+                <Link href="/register">
+                  <Button variant="outline" className="w-full" data-testid="button-register-mobile">{t("Join")}</Button>
+                </Link>
+              </div>
+            )}
           </nav>
         )}
       </div>

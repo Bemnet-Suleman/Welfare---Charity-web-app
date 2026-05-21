@@ -149,10 +149,10 @@ export default function CampaignDetail() {
 
                     <h3 className="text-xl font-semibold mt-6 mb-3 text-foreground">How Your Donation Helps</h3>
                     <ul className="space-y-2 text-foreground">
-                      <li>50 Birr provides emergency food for a family of 5 for one week</li>
-                      <li>100 Birr supplies clean water for 50 people</li>
-                      <li>250 Birr provides temporary shelter materials for one family</li>
-                      <li>500 Birr covers medical care for 20 flood victims</li>
+                      <li>50 {t("currency.Birr")} provides emergency food for a family of 5 for one week</li>
+                      <li>100 {t("currency.Birr")} supplies clean water for 50 people</li>
+                      <li>250 {t("currency.Birr")} provides temporary shelter materials for one family</li>
+                      <li>500 {t("currency.Birr")} covers medical care for 20 flood victims</li>
                     </ul>
                   </div>
                 </Card>
@@ -190,7 +190,7 @@ export default function CampaignDetail() {
                           </Avatar>
                           <span className="font-medium">{donor.name}</span>
                         </div>
-                        <Badge className="bg-secondary/10 text-secondary border-secondary/20">{donor.amount} Birr</Badge>
+                        <Badge className="bg-secondary/10 text-secondary border-secondary/20">{donor.amount} {t("currency.Birr")}</Badge>
                       </div>
                     ))}
                   </div>
@@ -205,9 +205,9 @@ export default function CampaignDetail() {
                 <div>
                   <div className="flex justify-between mb-2">
                     <span className="text-2xl font-bold font-['Space_Grotesk']" data-testid="amount-raised">
-                      {safeRaised.toLocaleString()} Birr
+                      {safeRaised.toLocaleString()} {t("currency.Birr")}
                     </span>
-                    <span className="text-muted-foreground">of {safeGoal.toLocaleString()} Birr</span>
+                    <span className="text-muted-foreground">of {safeGoal.toLocaleString()} {t("currency.Birr")}</span>
                   </div>
                   <Progress value={progress} className="h-3 mb-2" />
                   <p className="text-sm text-secondary font-medium">{progress.toFixed(0)}% funded</p>

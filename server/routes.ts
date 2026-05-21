@@ -1,10 +1,12 @@
 import type { Express } from "express";
 import passport from "passport";
+import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema, type InsertCampaign, type InsertStory } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import multer from "multer";
+import { sendVerificationEmail, sendResendVerificationEmail } from "./email";
 
 export async function registerRoutes(app: Express, upload: any): Promise<void> {
   // Auth routes
@@ -77,21 +79,81 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
       }
       const allowedRoles = ["donor", "volunteer", "beneficiary"];
       const safeRole = allowedRoles.includes(userData.role || "") ? userData.role : "donor";
-      // Hash the password
       const hashedPassword = await bcrypt.hash(userData.password, 10);
       const user = await storage.createUser({
         ...userData,
         role: safeRole,
         password: hashedPassword,
       });
-      req.logIn(user, (err) => {
-        if (err) {
-          return res.status(500).json({ error: "Registration error" });
+
+      const verificationToken = user.verificationToken;
+      const verificationLink = verificationToken
+        ? `${req.protocol}://${req.get("host")}/verify-email/${verificationToken}`
+        : null;
+
+      // Send verification email
+      if (verificationLink) {
+        try {
+          await sendVerificationEmail(user.email, verificationLink);
+        } catch (emailError) {
+          console.error("Failed to send verification email:", emailError);
+          // Don't fail registration if email fails to send
         }
-        res.json({ user });
-      });
+      }
+
+      res.json({ user, verificationLink, message: "Registration successful. Check your email to verify your account." });
     } catch (error) {
       res.status(400).json({ error: "Invalid user data" });
+    }
+  });
+
+  app.get("/api/auth/verify-email/:token", async (req, res) => {
+    try {
+      const user = await storage.getUserByVerificationToken(req.params.token);
+      if (!user) {
+        return res.status(404).json({ error: "Invalid or expired verification token" });
+      }
+      const updatedUser = await storage.updateUser(user.id, {
+        verified: true,
+        verificationToken: null,
+      });
+      if (!updatedUser) {
+        return res.status(500).json({ error: "Unable to verify email" });
+      }
+      res.json({ message: "Email verified successfully", user: updatedUser });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to verify email" });
+    }
+  });
+
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      const email = (req.body.email || "").toString();
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      if (user.verified) {
+        return res.status(400).json({ error: "Email is already verified" });
+      }
+      const newToken = randomUUID();
+      const updatedUser = await storage.updateUser(user.id, { verificationToken: newToken });
+      if (!updatedUser) {
+        return res.status(500).json({ error: "Unable to resend verification" });
+      }
+      const verificationLink = `${req.protocol}://${req.get("host")}/verify-email/${newToken}`;
+      
+      // Send resend verification email
+      try {
+        await sendResendVerificationEmail(user.email, verificationLink);
+      } catch (emailError) {
+        console.error("Failed to send resend verification email:", emailError);
+        // Don't fail the request if email fails to send
+      }
+      
+      res.json({ message: "Verification link resent to your email", verificationLink });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to resend verification" });
     }
   });
 
@@ -147,14 +209,29 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
         password: z.string().min(6).optional(),
       }).partial();
 
+      const adminSchema = baseSchema.extend({
+        verified: z.boolean().optional(),
+        blocked: z.boolean().optional(),
+      });
+
+      const systemAdminSchema = adminSchema.extend({
+        role: z.string().optional().refine((value) =>
+          !value || ["donor", "volunteer", "beneficiary", "admin", "system_admin"].includes(value),
+          { message: "Invalid role" },
+        ),
+      });
+
+      if (req.body.verified !== undefined) {
+        req.body.verified = req.body.verified === "true" || req.body.verified === true;
+      }
+      if (req.body.blocked !== undefined) {
+        req.body.blocked = req.body.blocked === "true" || req.body.blocked === true;
+      }
+
       const updateSchema = isSystemAdmin
-        ? baseSchema.extend({
-            role: z.string().optional().refine((value) =>
-              !value || ["donor", "volunteer", "beneficiary", "admin", "system_admin"].includes(value),
-              { message: "Invalid role" },
-            ),
-            verified: z.boolean().optional(),
-          })
+        ? systemAdminSchema
+        : isAdmin
+        ? adminSchema
         : baseSchema;
 
       const updatePayload = updateSchema.parse({

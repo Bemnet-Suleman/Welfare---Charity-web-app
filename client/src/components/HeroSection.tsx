@@ -4,8 +4,31 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
+const heroImages = [
+  "/attached_assets/Hero.jpg",
+  "/attached_assets/Hero1.jpg",
+  "/attached_assets/Story!.jpg",
+  "/attached_assets/Story2.jpg",
+  "/attached_assets/Story3.jpg",
+];
+
+function shuffleArray<T>(values: T[]) {
+  const arr = [...values];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export function HeroSection() {
   const [stats, setStats] = useState<{ donations: number; lives: number; volunteers: number }>({ donations: 0, lives: 0, volunteers: 0 });
+  const [order] = useState(() => shuffleArray(heroImages));
+  const [heroState, setHeroState] = useState(() => ({
+    activeLayer: 0 as 0 | 1,
+    currentIndex: 0,
+    layers: [order[0], order[1] ?? order[0]],
+  }));
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -24,22 +47,52 @@ export function HeroSection() {
       });
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeroState((prev) => {
+        const nextIndex = (prev.currentIndex + 1) % order.length;
+        const nextLayer = prev.activeLayer === 0 ? 1 : 0;
+        const nextLayers = [...prev.layers] as [string, string];
+        nextLayers[nextLayer] = order[nextIndex];
+
+        return {
+          activeLayer: nextLayer,
+          currentIndex: nextIndex,
+          layers: nextLayers,
+        };
+      });
+    }, 7000);
+
+    return () => clearInterval(interval);
+  }, [order]);
+
   return (
     <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden">
-      <div 
-        className="absolute inset-0 bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20"
-        style={{
-          backgroundImage: "url('/attached_assets/Hero1.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-        role="img"
-        aria-label={t("People helping each other in community")}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/80 via-primary/60 to-transparent" />
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className={`absolute inset-0 hero-image transition-opacity duration-1000 ease-in-out ${
+            heroState.activeLayer === 0 ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ backgroundImage: `url('${heroState.layers[0]}')` }}
+          role="img"
+          aria-label={t("People helping each other in community")}
+        />
+        <div
+          className={`absolute inset-0 hero-image transition-opacity duration-1000 ease-in-out ${
+            heroState.activeLayer === 1 ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ backgroundImage: `url('${heroState.layers[1]}')` }}
+          aria-hidden="true"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: "linear-gradient(180deg, rgba(255, 145, 77, 0.14), rgba(255, 125, 35, 0.08) 35%, rgba(15,23,42,0.10) 100%)",
+          }}
+        />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 py-20 text-center animate-in fade-in slide-in-from-bottom-4 duration-1000">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-20 text-center animate-in fade-in slide-in-from-bottom-4 duration-1000 bg-black/20 border border-white/10 rounded-[2rem] shadow-2xl">
         <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 font-['Poppins']">
           {t("Give with Clarity. Help with Confidence.")}
         </h1>

@@ -78,6 +78,14 @@ export async function createApp(): Promise<Express> {
             return done(null, false, { message: "Invalid email or password" });
           }
 
+          if (user.blocked) {
+            return done(null, false, { message: "This account has been blocked" });
+          }
+
+          if (!user.verified) {
+            return done(null, false, { message: "Email not verified. Please verify your email before signing in." });
+          }
+
           const isValidPassword = await bcrypt.compare(password, user.password);
           if (!isValidPassword) {
             return done(null, false, { message: "Invalid email or password" });

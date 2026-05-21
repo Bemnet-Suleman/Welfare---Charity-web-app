@@ -60,9 +60,9 @@ export function CampaignCard({
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="font-semibold font-['Space_Grotesk']" data-testid="campaign-raised">
-              {raisedAmount.toLocaleString()} Birr
+              {raisedAmount.toLocaleString()} {t("currency.Birr")}
             </span>
-            <span className="text-muted-foreground">{t("of")} {goalAmount.toLocaleString()} Birr</span>
+            <span className="text-muted-foreground">{t("of")} {goalAmount.toLocaleString()} {t("currency.Birr")}</span>
           </div>
           <Progress value={progress} className="h-2" />
           <div className="flex items-center justify-between text-sm">

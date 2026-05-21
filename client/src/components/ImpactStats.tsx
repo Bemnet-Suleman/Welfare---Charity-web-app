@@ -21,7 +21,7 @@ export function ImpactStats() {
   const statItems = [
     {
       icon: TrendingUp,
-      value: stats ? `${(stats.totalRaised / 1000000).toFixed(1)} ${t("M")} Birr` : "2.5M Birr",
+      value: stats ? `${(stats.totalRaised / 1000000).toFixed(1)} ${t("M")} ${t("currency.Birr")}` : `2.5${t("M")} ${t("currency.Birr")}`,
       label: t("Total Raised"),
       change: "+23%"+ t("this month"),
       color: "text-chart-1",

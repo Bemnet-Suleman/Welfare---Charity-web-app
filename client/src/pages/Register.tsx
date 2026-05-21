@@ -35,6 +35,7 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  const [verificationLink, setVerificationLink] = useState<string | null>(null);
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -47,18 +48,21 @@ export default function Register() {
 
   const onSubmit = async (data: RegisterForm) => {
     try {
-      await apiRequest("POST", "/api/auth/register", {
-        username: data.email, // use email as username for simplicity
+      const response = await apiRequest("POST", "/api/auth/register", {
+        username: data.email,
         fullName: `${data.firstName} ${data.lastName}`,
         email: data.email,
         password: data.password,
         role: data.userType,
       });
+      const result = await response.json();
+      if (result.verificationLink) {
+        setVerificationLink(result.verificationLink);
+      }
       toast({
-      title: t("Registration Successful"),
-      description: t("Welcome to Welfare! Please sign in to continue."),
+        title: t("Registration Successful"),
+        description: t("Please verify your email before signing in."),
       });
-      setLocation("/login");
     } catch (error: any) {
       toast({
         title: t("Registration Failed"),
@@ -198,6 +202,12 @@ export default function Register() {
             >
               {isSubmitting ? "Creating Account..." : "Create Account"}
             </Button>
+
+            {verificationLink && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-primary mt-4">
+                {t("Your verification link")}: <a href={verificationLink} className="underline">{verificationLink}</a>
+              </div>
+            )}
 
             <p className="text-center text-sm text-muted-foreground">
               Already have an account?{" "}

@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, DollarSign, Users, TrendingUp, Clock } from "lucide-react";
+import { CheckCircle2, Users, TrendingUp, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
@@ -89,7 +89,7 @@ export default function Transparency() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold font-['Space_Grotesk']">
-                        ${item.amount.toLocaleString()}
+                        {item.amount.toLocaleString()} {t("currency.ETB")}
                       </p>
                       <p className="text-sm text-muted-foreground">{item.percentage}%</p>
                     </div>
@@ -125,7 +125,7 @@ export default function Transparency() {
                     <p className="text-sm text-muted-foreground truncate">{donation.campaign}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge className="bg-secondary/10 text-secondary border-secondary/20">
-                        ${donation.amount}
+                        {donation.amount} {t("currency.ETB")}
                       </Badge>
                       <span className="text-xs text-muted-foreground">{donation.time}</span>
                     </div>
@@ -142,11 +142,11 @@ export default function Transparency() {
             <Card className="p-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-3 rounded-lg bg-chart-1/10">
-                  <DollarSign className="h-6 w-6 text-chart-1" />
-                </div>
+                    <span className="text-base font-semibold text-chart-1">ETB</span>
+                  </div>
               </div>
               <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="metric-total-raised">
-                $2.5M
+                2.5{t("M")} {t("currency.ETB")}
               </p>
               <p className="text-sm text-muted-foreground">{t("transparency.totalRaisedThisYear")}</p>
             </Card>
@@ -208,8 +208,8 @@ export default function Transparency() {
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <DollarSign className="h-4 w-4" />
-                        ${campaign.raised.toLocaleString()} {t("transparency.raised")}
+                        <span className="inline text-sm font-semibold">ETB</span>
+                        {campaign.raised.toLocaleString()} {t("transparency.raised")}
                       </span>
                       <span className="flex items-center gap-1">
                         <Users className="h-4 w-4" />

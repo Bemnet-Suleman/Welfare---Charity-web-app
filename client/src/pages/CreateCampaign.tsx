@@ -4,17 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Target } from "lucide-react";
+import { Target } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
-
-type User = {
-  id: string;
-  role?: string;
-};
 
 const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1640622656785-4fddbd3b4c6a?w=800&q=80";
 
@@ -81,12 +76,22 @@ export default function CreateCampaign() {
       const formData = new FormData();
       formData.append("title", title);
       formData.append("description", description);
-      formData.append("goalAmount", goal);
+
+      const goalAmount = Number(goal);
+      if (Number.isNaN(goalAmount) || goalAmount <= 0) {
+        throw new Error(t("Please provide a valid funding goal."));
+      }
+      formData.append("goalAmount", goalAmount.toFixed(2));
       formData.append("category", category || "other");
       formData.append("location", location);
 
+      const durationDays = Number(duration);
+      if (Number.isNaN(durationDays) || durationDays <= 0) {
+        throw new Error(t("Please provide a valid campaign duration."));
+      }
+
       const startDate = new Date();
-      const endDate = new Date(Date.now() + Number(duration || 30) * 24 * 60 * 60 * 1000);
+      const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
       formData.append("startDate", startDate.toISOString());
       formData.append("endDate", endDate.toISOString());
 

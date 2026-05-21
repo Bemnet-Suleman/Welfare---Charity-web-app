@@ -15,6 +15,7 @@ type User = {
   email?: string;
   role?: string;
   verified?: boolean;
+  blocked?: boolean;
   username?: string;
   createdAt?: string;
 };
@@ -30,7 +31,9 @@ export default function AdminDashboard() {
   });
 
   const user = authData as User | undefined;
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "system_admin";
+  const canManageUsers = user?.role === "admin" || user?.role === "system_admin";
+  const canChangeRole = user?.role === "system_admin";
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["admin/campaigns"],
@@ -59,7 +62,7 @@ export default function AdminDashboard() {
   const { data: users = [] } = useQuery({
     queryKey: ["admin/users"],
     queryFn: () => apiRequest("GET", "/api/users").then((res) => res.json()),
-    enabled: isAdmin,
+    enabled: canManageUsers,
   });
 
   const handleRoleChange = async (userId: string, newRole: string) => {
@@ -70,6 +73,23 @@ export default function AdminDashboard() {
         description: `User role changed to ${newRole}`,
       });
       // Invalidate query to refresh user list
+      queryClient.invalidateQueries({ queryKey: ["admin/users"] });
+    } catch (error: any) {
+      toast({
+        title: t("Update Failed"),
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUserUpdate = async (userId: string, updates: Record<string, any>, successMessage: string) => {
+    try {
+      await apiRequest("PUT", `/api/users/${userId}`, updates);
+      toast({
+        title: t("User Updated"),
+        description: successMessage,
+      });
       queryClient.invalidateQueries({ queryKey: ["admin/users"] });
     } catch (error: any) {
       toast({
@@ -504,7 +524,7 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {user?.role === "system_admin" && (
+        {canManageUsers && (
           <div className="mt-12">
             <h2 className="text-2xl font-bold mb-6 font-['Poppins']">{t("System Administration")}</h2>
             <Card className="p-6">
@@ -517,6 +537,7 @@ export default function AdminDashboard() {
                       <th className="text-left py-2 px-2">{t("Full Name")}</th>
                       <th className="text-left py-2 px-2">{t("Role")}</th>
                       <th className="text-left py-2 px-2">{t("Verified")}</th>
+                      <th className="text-left py-2 px-2">{t("Blocked")}</th>
                       <th className="text-left py-2 px-2">{t("Created")}</th>
                       <th className="text-left py-2 px-2">{t("Actions")}</th>
                     </tr>
@@ -527,7 +548,8 @@ export default function AdminDashboard() {
                         <td className="py-3 px-2 text-xs">{u.email}</td>
                         <td className="py-3 px-2">{u.fullName || u.username || "-"}</td>
                         <td className="py-3 px-2">
-                          <Select defaultValue={u.role || "donor"} onValueChange={(value) => handleRoleChange(u.id, value)}>
+                          {canChangeRole ? (
+                            <Select defaultValue={u.role || "donor"} onValueChange={(value) => handleRoleChange(u.id, value)}>
                             <SelectTrigger className="w-32">
                               <SelectValue />
                             </SelectTrigger>
@@ -539,17 +561,41 @@ export default function AdminDashboard() {
                               <SelectItem value="system_admin">{t("System Admin")}</SelectItem>
                             </SelectContent>
                           </Select>
+                          ) : (
+                            <span className="capitalize">{u.role || t("donor")}</span>
+                          )}
                         </td>
                         <td className="py-3 px-2">
                           <Badge variant={u.verified ? "default" : "secondary"}>
                             {u.verified ? t("Yes") : t("No")}
                           </Badge>
                         </td>
+                        <td className="py-3 px-2">
+                          <Badge variant={u.blocked ? "destructive" : "default"}>
+                            {u.blocked ? t("Yes") : t("No")}
+                          </Badge>
+                        </td>
                         <td className="py-3 px-2 text-xs">
                           {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-"}
                         </td>
                         <td className="py-3 px-2">
-                          <Button variant="ghost" size="sm" disabled>{t("Edit")}</Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant={u.verified ? "outline" : "secondary"}
+                              size="sm"
+                              disabled={u.verified}
+                              onClick={() => handleUserUpdate(u.id, { verified: true }, `${u.email} is now verified`)}
+                            >
+                              {u.verified ? t("Verified") : t("Verify")}
+                            </Button>
+                            <Button
+                              variant={u.blocked ? "secondary" : "destructive"}
+                              size="sm"
+                              onClick={() => handleUserUpdate(u.id, { blocked: !u.blocked }, u.blocked ? `${u.email} is unblocked` : `${u.email} is blocked`)}
+                            >
+                              {u.blocked ? t("Unblock") : t("Block")}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}

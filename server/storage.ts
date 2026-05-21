@@ -53,8 +53,9 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  updateUser(id: string, user: Partial<User>): Promise<User | undefined>;
   getUsers(limit?: number): Promise<User[]>;
 
   // Campaigns
@@ -117,6 +118,8 @@ export class DatabaseStorage implements IStorage {
       role: "admin",
       avatar: "https://api.dicebear.com/7.x/initials/svg?seed=CA",
       verified: true,
+      blocked: false,
+      verificationToken: null,
       createdAt: new Date("2024-01-01"),
     };
     this.memUsers.set(adminUser.id, adminUser);
@@ -130,6 +133,8 @@ export class DatabaseStorage implements IStorage {
       role: "system_admin",
       avatar: "https://api.dicebear.com/7.x/initials/svg?seed=SA",
       verified: true,
+      blocked: false,
+      verificationToken: null,
       createdAt: new Date("2024-01-01"),
     };
     this.memUsers.set(sysAdminUser.id, sysAdminUser);
@@ -143,6 +148,8 @@ export class DatabaseStorage implements IStorage {
       role: "admin",
       avatar: "https://api.dicebear.com/7.x/initials/svg?seed=RC",
       verified: true,
+      blocked: false,
+      verificationToken: null,
       createdAt: new Date("2024-01-01"),
     };
     this.memUsers.set(user1.id, user1);
@@ -227,26 +234,43 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    if (this.isDbAvailable()) {
+      const result = await db.select().from(users).where(eq(users.verificationToken, token));
+      return result[0];
+    }
+    return Array.from(this.memUsers.values()).find(
+      (user) => user.verificationToken === token,
+    );
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     if (this.isDbAvailable()) {
-      const result = await db.insert(users).values(insertUser).returning();
+      const result = await db.insert(users).values({
+        ...insertUser,
+        verified: false,
+        blocked: false,
+        verificationToken: randomUUID(),
+      }).returning();
       return result[0];
     }
     const id = randomUUID();
-    const user: User = { 
-      ...insertUser, 
-      id, 
+    const user: User = {
+      ...insertUser,
+      id,
       fullName: insertUser.fullName ?? null,
       avatar: insertUser.avatar ?? null,
       role: insertUser.role ?? "donor",
-      verified: false, 
-      createdAt: new Date() 
+      verified: false,
+      blocked: false,
+      verificationToken: randomUUID(),
+      createdAt: new Date(),
     };
     this.memUsers.set(id, user);
     return user;
   }
 
-  async updateUser(id: string, partialUser: Partial<InsertUser>): Promise<User | undefined> {
+  async updateUser(id: string, partialUser: Partial<User>): Promise<User | undefined> {
     if (this.isDbAvailable()) {
       const result = await db
         .update(users)

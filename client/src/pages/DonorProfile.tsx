@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Heart, TrendingUp, Award, Calendar, DollarSign, Users } from "lucide-react";
+import { Heart, TrendingUp, Award, Calendar, Users } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
@@ -72,6 +72,7 @@ export default function DonorProfile() {
   const user = userData as UserProfile | undefined;
   const isAdmin = user?.role === "admin";
   const isOrganizer = user?.role === "organizer";
+  const isBeneficiary = user?.role === "beneficiary";
 
   useEffect(() => {
     if (user) {
@@ -87,6 +88,15 @@ export default function DonorProfile() {
   const isDonor = user?.role === "donor" || !user?.role;
 
   const userId = user?.id;
+
+  const { data: aidRequestsData = [], isLoading: aidRequestsLoading } = useQuery({
+    queryKey: ["aid-requests", userId],
+    queryFn: () => apiRequest("GET", `/api/users/${userId}/aid-requests`).then((res) => res.json()),
+    enabled: isBeneficiary && !!userId,
+    retry: 1,
+  });
+
+  const aidRequests = aidRequestsData as any[];
 
   const { data: donationsData = [], isLoading: donationsLoading } = useQuery({
     queryKey: ["donations", userId],
@@ -112,6 +122,21 @@ export default function DonorProfile() {
       isVolunteerUser ? "volunteer" : null,
     ].filter(Boolean) as string[]),
   );
+
+  const isVolunteer = isVolunteerUser || user?.role === "volunteer";
+  const roleDescription = isAdmin
+    ? t("donorProfile.adminDescription")
+    : isOrganizer
+    ? t("donorProfile.organizerDescription")
+    : isBeneficiary
+    ? t("donorProfile.beneficiaryDescription")
+    : isVolunteer
+    ? t("donorProfile.volunteerDescription")
+    : t("donorProfile.donorDescription");
+
+  const requestsSubmitted = aidRequests.length;
+  const approvedRequests = aidRequests.filter((request: any) => request.status === "approved").length;
+  const pendingRequests = aidRequests.filter((request: any) => request.status === "pending").length;
 
   const totalDonated = donations.reduce((sum, d) => sum + Number(d.amount), 0);
   const campaignsSupported = new Set(donations.map((d) => d.campaignId)).size;
@@ -209,7 +234,7 @@ export default function DonorProfile() {
       ]),
   ).values()) as Campaign[];
 
-  if (userLoading || donationsLoading || volunteerLoading) {
+  if (userLoading || donationsLoading || volunteerLoading || aidRequestsLoading) {
     return <div className="text-center py-24">{t("donorProfile.loadingProfile")}</div>;
   }
 
@@ -230,13 +255,7 @@ export default function DonorProfile() {
             <div className="flex-1 text-center md:text-left">
               <h1 className="text-3xl font-bold mb-2 font-['Poppins']">{user.fullName || user.username}</h1>
               <p className="text-muted-foreground mb-2">{t("Member since")} {new Date(user.createdAt ?? Date.now()).toLocaleDateString()}</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                {isAdmin
-                  ? t("donorProfile.adminDescription")
-                  : isOrganizer
-                  ? t("donorProfile.organizerDescription")
-                  : t("donorProfile.donorDescription")}
-              </p>
+              <p className="text-sm text-muted-foreground mb-4">{roleDescription}</p>
 
               <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                 {profileRoles.map((role) => (
@@ -244,7 +263,9 @@ export default function DonorProfile() {
                     {getRoleLabel(role, t)}
                   </Badge>
                 ))}
-                <Badge variant="secondary" className="gap-1">{campaignsSupported} {t("donorProfile.donations")}</Badge>
+                <Badge variant="secondary" className="gap-1">
+                  {isBeneficiary ? requestsSubmitted : campaignsSupported} {isBeneficiary ? t("donorProfile.requestsSubmitted") : t("donorProfile.donations")}
+                </Badge>
               </div>
             </div>
 
@@ -345,152 +366,246 @@ export default function DonorProfile() {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 rounded-lg bg-chart-1/10">
-                <DollarSign className="h-6 w-6 text-chart-1" />
+        {isBeneficiary ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-3 rounded-lg bg-chart-1/10">
+                  <span className="text-base font-semibold text-chart-1">{t("donorProfile.requests")}</span>
+                </div>
               </div>
-            </div>
-            <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-total-donated">{totalDonated.toLocaleString()} Birr</p>
-            <p className="text-sm text-muted-foreground">{t("donorProfile.totalDonated")}</p>
-          </Card>
+              <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-requests-submitted">{requestsSubmitted}</p>
+              <p className="text-sm text-muted-foreground">{t("donorProfile.requestsSubmitted")}</p>
+            </Card>
 
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 rounded-lg bg-chart-2/10">
-                <Heart className="h-6 w-6 text-chart-2" />
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-3 rounded-lg bg-chart-2/10">
+                  <Heart className="h-6 w-6 text-chart-2" />
+                </div>
               </div>
-            </div>
-            <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-campaigns-supported">{campaignsSupported}</p>
-            <p className="text-sm text-muted-foreground">{t("donorProfile.campaignsSupported")}</p>
-          </Card>
+              <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-approved-requests">{approvedRequests}</p>
+              <p className="text-sm text-muted-foreground">{t("donorProfile.approvedRequests")}</p>
+            </Card>
 
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 rounded-lg bg-chart-3/10">
-                <Users className="h-6 w-6 text-chart-3" />
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-3 rounded-lg bg-chart-3/10">
+                  <Users className="h-6 w-6 text-chart-3" />
+                </div>
               </div>
-            </div>
-            <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-lives-impacted">{livesImpacted}</p>
-            <p className="text-sm text-muted-foreground">{t("donorProfile.livesImpacted")}</p>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 rounded-lg bg-chart-4/10">
-                <TrendingUp className="h-6 w-6 text-chart-4" />
+              <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-pending-requests">{pendingRequests}</p>
+              <p className="text-sm text-muted-foreground">{t("donorProfile.pendingRequests")}</p>
+            </Card>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-3 rounded-lg bg-chart-1/10">
+                  <span className="text-base font-semibold text-chart-1">ETB</span>
+                </div>
               </div>
-            </div>
-            <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-monthly-donations">{monthlyDonations}</p>
-            <p className="text-sm text-muted-foreground">{t("donorProfile.monthlyDonations")}</p>
-          </Card>
-        </div>
+              <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-total-donated">{totalDonated.toLocaleString()} {t("currency.Birr")}</p>
+              <p className="text-sm text-muted-foreground">{t("donorProfile.totalDonated")}</p>
+            </Card>
 
-        <Tabs defaultValue="history" className="space-y-6">
-          <TabsList className="grid w-full md:w-auto grid-cols-3">
-            <TabsTrigger value="history" data-testid="tab-history">{t("donorProfile.donationHistory")}</TabsTrigger>
-            <TabsTrigger value="campaigns" data-testid="tab-campaigns">{t("donorProfile.activeCampaigns")}</TabsTrigger>
-            <TabsTrigger value="impact" data-testid="tab-impact">{t("donorProfile.myImpact")}</TabsTrigger>
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-3 rounded-lg bg-chart-2/10">
+                  <Heart className="h-6 w-6 text-chart-2" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-campaigns-supported">{campaignsSupported}</p>
+              <p className="text-sm text-muted-foreground">{t("donorProfile.campaignsSupported")}</p>
+            </Card>
+
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-3 rounded-lg bg-chart-3/10">
+                  <Users className="h-6 w-6 text-chart-3" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-lives-impacted">{livesImpacted}</p>
+              <p className="text-sm text-muted-foreground">{t("donorProfile.livesImpacted")}</p>
+            </Card>
+
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-3 rounded-lg bg-chart-4/10">
+                  <TrendingUp className="h-6 w-6 text-chart-4" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="stat-monthly-donations">{monthlyDonations}</p>
+              <p className="text-sm text-muted-foreground">{t("donorProfile.monthlyDonations")}</p>
+            </Card>
+          </div>
+        )}
+
+        <Tabs defaultValue={isBeneficiary ? "requests" : "history"} className="space-y-6">
+          <TabsList className={isBeneficiary ? "grid w-full md:w-auto grid-cols-2" : "grid w-full md:w-auto grid-cols-3"}>
+            {isBeneficiary ? (
+              <>
+                <TabsTrigger value="requests" data-testid="tab-aid-requests">{t("donorProfile.aidRequests")}</TabsTrigger>
+                <TabsTrigger value="account" data-testid="tab-account">{t("donorProfile.accountOverview")}</TabsTrigger>
+              </>
+            ) : (
+              <>
+                <TabsTrigger value="history" data-testid="tab-history">{t("donorProfile.donationHistory")}</TabsTrigger>
+                <TabsTrigger value="campaigns" data-testid="tab-campaigns">{t("donorProfile.activeCampaigns")}</TabsTrigger>
+                <TabsTrigger value="impact" data-testid="tab-impact">{t("donorProfile.myImpact")}</TabsTrigger>
+              </>
+            )}
           </TabsList>
 
-          <TabsContent value="history" className="space-y-4">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4 font-['Poppins']">{t("donorProfile.donationHistory")}</h2>
-              <div className="space-y-3">
-                {!isDonor ? (
-                  <p className="text-muted-foreground">{t("donorProfile.donationHistoryUnavailable")}</p>
-                ) : donationHistory.length === 0 ? (
-                  <p className="text-muted-foreground">{t("donorProfile.noDonationsYet")}</p>
-                ) : (
-                  donationHistory.map((donation) => (
-                    <div key={donation.id} className="flex items-center justify-between p-4 rounded-lg border hover-elevate transition-all">
-                      <div className="flex-1">
-                        <p className="font-medium">{donation.campaign}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">{donation.date}</span>
+          {isBeneficiary ? (
+            <>
+              <TabsContent value="requests" className="space-y-4">
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-4 font-['Poppins']">{t("donorProfile.aidRequests")}</h2>
+                  <div className="space-y-3">
+                    {aidRequests.length === 0 ? (
+                      <p className="text-muted-foreground">{t("donorProfile.noAidRequestsYet")}</p>
+                    ) : (
+                      aidRequests.map((request: any) => (
+                        <div key={request.id} className="flex flex-col gap-3 p-4 rounded-lg border hover-elevate transition-all">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <p className="font-medium">{request.title || t("donorProfile.aidRequest")}</p>
+                              <p className="text-sm text-muted-foreground">{new Date(request.createdAt).toLocaleDateString()}</p>
+                            </div>
+                            <Badge className="bg-secondary/10 text-secondary border-secondary/20">{request.status || t("donorProfile.pending")}</Badge>
+                          </div>
+                          {request.description && <p className="text-sm text-muted-foreground">{request.description}</p>}
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold font-['Space_Grotesk']">{donation.amount.toLocaleString()} Birr</p>
-                        <Badge className="bg-secondary/10 text-secondary border-secondary/20 mt-1">{donation.status}</Badge>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </Card>
-          </TabsContent>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="campaigns" className="space-y-4">
-            {isAdmin ? (
-              <p className="text-muted-foreground">{t("donorProfile.adminCampaignMessage")}</p>
-            ) : !isDonor ? (
-              <p className="text-muted-foreground">{t("donorProfile.organizerCampaignMessage")}</p>
-            ) : activeCampaigns.length === 0 ? (
-              <p className="text-muted-foreground">{t("donorProfile.noActiveContributions")}</p>
-            ) : (
-              activeCampaigns.map((campaign) => (
-                <Card key={campaign.id} className="p-6">
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-lg font-semibold mb-1">{campaign.title}</h3>
-                        <p className="text-sm text-muted-foreground">{t("donorProfile.lastUpdate")}: {campaign.lastUpdate}</p>
-                      </div>
-                      <Button variant="outline" size="sm" data-testid={`button-view-campaign-${campaign.id}`}>
-                        {t("donorProfile.viewCampaign")}
-                      </Button>
+              <TabsContent value="account" className="space-y-4">
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-4 font-['Poppins']">{t("donorProfile.accountOverview")}</h2>
+                  <p className="text-muted-foreground mb-4">{roleDescription}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-lg border p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">{t("donorProfile.requestsSubmitted")}</p>
+                      <p className="text-3xl font-bold">{requestsSubmitted}</p>
                     </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">{t("donorProfile.yourContribution")}: {campaign.donated.toLocaleString()} Birr</span>
-                        <span className="text-muted-foreground">{t("donorProfile.goal")}: {campaign.goal.toLocaleString()} Birr</span>
-                      </div>
-                      <Progress value={campaign.progress} className="h-2" />
-                      <p className="text-sm text-secondary">{campaign.progress}% {t("donorProfile.funded")}</p>
+                    <div className="rounded-lg border p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">{t("donorProfile.approvedRequests")}</p>
+                      <p className="text-3xl font-bold">{approvedRequests}</p>
+                    </div>
+                    <div className="rounded-lg border p-4 md:col-span-2">
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">{t("donorProfile.pendingRequests")}</p>
+                      <p className="text-3xl font-bold">{pendingRequests}</p>
                     </div>
                   </div>
                 </Card>
-              ))
-            )}
-          </TabsContent>
+              </TabsContent>
+            </>
+          ) : (
+            <>
+              <TabsContent value="history" className="space-y-4">
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-4 font-['Poppins']">{t("donorProfile.donationHistory")}</h2>
+                  <div className="space-y-3">
+                    {!isDonor ? (
+                      <p className="text-muted-foreground">{t("donorProfile.donationHistoryUnavailable")}</p>
+                    ) : donationHistory.length === 0 ? (
+                      <p className="text-muted-foreground">{t("donorProfile.noDonationsYet")}</p>
+                    ) : (
+                      donationHistory.map((donation) => (
+                        <div key={donation.id} className="flex items-center justify-between p-4 rounded-lg border hover-elevate transition-all">
+                          <div className="flex-1">
+                            <p className="font-medium">{donation.campaign}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">{donation.date}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold font-['Space_Grotesk']">{donation.amount.toLocaleString()} {t("currency.Birr")}</p>
+                            <Badge className="bg-secondary/10 text-secondary border-secondary/20 mt-1">{donation.status}</Badge>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="impact">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-6 font-['Poppins']">{t("donorProfile.yourImpactStory")}</h2>
-              <div className="space-y-6">
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <p className="text-muted-foreground">{t("donorProfile.impactThanks")}</p>
-                </div>
+              <TabsContent value="campaigns" className="space-y-4">
+                {isAdmin ? (
+                  <p className="text-muted-foreground">{t("donorProfile.adminCampaignMessage")}</p>
+                ) : !isDonor ? (
+                  <p className="text-muted-foreground">{t("donorProfile.organizerCampaignMessage")}</p>
+                ) : activeCampaigns.length === 0 ? (
+                  <p className="text-muted-foreground">{t("donorProfile.noActiveContributions")}</p>
+                ) : (
+                  activeCampaigns.map((campaign) => (
+                    <Card key={campaign.id} className="p-6">
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-semibold mb-1">{campaign.title}</h3>
+                            <p className="text-sm text-muted-foreground">{t("donorProfile.lastUpdate")}: {campaign.lastUpdate}</p>
+                          </div>
+                          <Button variant="outline" size="sm" data-testid={`button-view-campaign-${campaign.id}`}>
+                            {t("donorProfile.viewCampaign")}
+                          </Button>
+                        </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-2xl font-bold text-chart-1 mb-1">{Math.round(totalDonated / 10).toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">{t("donorProfile.mealsProvided")}</p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-2xl font-bold text-chart-2 mb-1">{Math.round(totalDonated / 100).toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">{t("donorProfile.childrenEducated")}</p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-2xl font-bold text-chart-3 mb-1">{Math.round(totalDonated / 200).toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">{t("donorProfile.medicalTreatments")}</p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <p className="text-2xl font-bold text-chart-4 mb-1">{livesImpacted.toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">{t("donorProfile.cleanWaterWells")}</p>
-                  </div>
-                </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">{t("donorProfile.yourContribution")}: {campaign.donated.toLocaleString()} {t("currency.Birr")}</span>
+                            <span className="text-muted-foreground">{t("donorProfile.goal")}: {campaign.goal.toLocaleString()} {t("currency.Birr")}</span>
+                          </div>
+                          <Progress value={campaign.progress} className="h-2" />
+                          <p className="text-sm text-secondary">{campaign.progress}% {t("donorProfile.funded")}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </TabsContent>
 
-                <Button className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border" data-testid="button-share-impact">
-                  <Heart className="h-4 w-4 mr-2 fill-current" /> {t("donorProfile.shareMyImpact")}
-                </Button>
-              </div>
-            </Card>
-          </TabsContent>
+              <TabsContent value="impact">
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-6 font-['Poppins']">{t("donorProfile.yourImpactStory")}</h2>
+                  <div className="space-y-6">
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <p className="text-muted-foreground">{t("donorProfile.impactThanks")}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-chart-1 mb-1">{Math.round(totalDonated / 10).toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">{t("donorProfile.mealsProvided")}</p>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-chart-2 mb-1">{Math.round(totalDonated / 100).toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">{t("donorProfile.childrenEducated")}</p>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-chart-3 mb-1">{Math.round(totalDonated / 200).toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">{t("donorProfile.medicalTreatments")}</p>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <p className="text-2xl font-bold text-chart-4 mb-1">{livesImpacted.toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">{t("donorProfile.cleanWaterWells")}</p>
+                      </div>
+                    </div>
+
+                    <Button className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border" data-testid="button-share-impact">
+                      <Heart className="h-4 w-4 mr-2 fill-current" /> {t("donorProfile.shareMyImpact")}
+                    </Button>
+                  </div>
+                </Card>
+              </TabsContent>
+            </>
+          )}
         </Tabs>
       </div>
     </div>

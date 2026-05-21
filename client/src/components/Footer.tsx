@@ -2,14 +2,26 @@ import { Heart, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export function Footer() {
   const { t } = useTranslation();
 
+  const { data: userData } = useQuery({
+    queryKey: ["auth/me"],
+    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
+    retry: 1,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const user = userData as { role?: string } | undefined;
+  const hideDonorLink = user?.role === "beneficiary";
+
   return (
     <footer className="bg-card border-t border-card-border">
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Heart className="h-6 w-6 text-accent fill-accent" />
@@ -35,12 +47,14 @@ export function Footer() {
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">{t("For Donors")}</h3>
+            <h3 className="font-semibold mb-4">{t("Support")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/campaigns"><a className="hover:text-foreground transition-colors">{t("Browse Campaigns")}</a></Link></li>
               <li><Link href="/donate"><a className="hover:text-foreground transition-colors">{t("Make a Donation")}</a></Link></li>
               <li><Link href="/transparency"><a className="hover:text-foreground transition-colors">{t("Transparency")}</a></Link></li>
-              <li><Link href="/profile"><a className="hover:text-foreground transition-colors">{t("My Donations")}</a></Link></li>
+              {!hideDonorLink && (
+                <li><Link href="/profile"><a className="hover:text-foreground transition-colors">{t("My Donations")}</a></Link></li>
+              )}
             </ul>
           </div>
 
