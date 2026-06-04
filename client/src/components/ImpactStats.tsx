@@ -3,6 +3,7 @@ import { TrendingUp, Heart, Users, Target } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
+import { formatLargeNumber } from "@/lib/utils";
 
 interface Stats {
   totalRaised: number;
@@ -21,30 +22,36 @@ export function ImpactStats() {
   const statItems = [
     {
       icon: TrendingUp,
-      value: stats ? `${(stats.totalRaised / 1000000).toFixed(1)} ${t("M")} ${t("currency.Birr")}` : `2.5${t("M")} ${t("currency.Birr")}`,
+      value: stats
+        ? `${stats.totalRaised.toLocaleString()} ${t("currency.Birr")}`
+        : `0 ${t("currency.Birr")}`,
       label: t("Total Raised"),
-      change: "+23%"+ t("this month"),
+      change: `+23% ${t("this month")}`,
       color: "text-chart-1",
     },
     {
       icon: Heart,
-      value: stats ? `${(stats.livesImpacted / 1000).toFixed(0)}`+ t("K") : "45K",
+      value: stats
+        ? formatLargeNumber(stats.livesImpacted, t)
+        : `0${t("K")}`,
       label: t("Lives Impacted"),
-      change: "+15% " + t("this month"),
+      change: `+15% ${t("this month")}`,
       color: "text-chart-3",
     },
     {
       icon: Users,
-      value: stats ? `${(stats.activeVolunteers / 1000).toFixed(1)}`+ t("K") : "5.2K",
+      value: stats
+        ? formatLargeNumber(stats.activeVolunteers, t)
+        : `0${t("K")}`,
       label: t("Active Volunteers"),
-      change:"+8%" + t("this month"),
+      change: `+8% ${t("this month")}`,
       color: "text-chart-2",
     },
     {
       icon: Target,
-      value: stats ? `${stats.goalsAchieved}%` : "89%",
+      value: stats ? `${Math.round(stats.goalsAchieved)}%` : "0%",
       label: t("Goals Achieved"),
-      change: "+5%"+ t("this month"),
+      change: `+5% ${t("this month")}`,
       color: "text-chart-4",
     },
   ];

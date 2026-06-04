@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Filter } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
@@ -21,7 +21,7 @@ export default function Volunteer() {
   // Check if user is authenticated
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((r) => r.json()),
+    queryFn: fetchCurrentUser,
   });
 
   const { data: campaigns, isLoading, error } = useQuery({
@@ -34,20 +34,24 @@ export default function Volunteer() {
         .then((r) => r.json()),
   });
 
+  const isDonor = authData?.role === "donor";
+
   const handleApply = async (campaignId: string) => {
-    if (!authData?.user?.id) {
+    if (!authData?.id || !isDonor) {
       toast({
-        title: t("Authentication Required"),
-        description: t("Please log in to apply for volunteer opportunities."),
+        title: t("Access Denied"),
+        description: t("Only donor accounts can apply for volunteer opportunities."),
         variant: "destructive",
       });
-      navigate("/login");
+      if (!authData?.id) {
+        navigate("/login");
+      }
       return;
     }
 
     try {
       await apiRequest("POST", "/api/volunteers", {
-        userId: authData.user.id,
+        userId: authData.id,
         campaignId,
         skills: [],
         availability: "",
@@ -91,7 +95,7 @@ export default function Volunteer() {
     );
   }
 
-  if (!authData?.user) {
+  if (!authData?.id) {
     return (
       <div className="min-h-screen py-12">
         <div className="max-w-3xl mx-auto px-4">
@@ -107,6 +111,25 @@ export default function Volunteer() {
               <Button variant="outline" onClick={() => navigate("/register")}>
                 {t("Create Account")}
               </Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isDonor) {
+    return (
+      <div className="min-h-screen py-12">
+        <div className="max-w-3xl mx-auto px-4">
+          <Card className="p-10 text-center">
+            <h1 className="text-3xl font-bold mb-4">{t("Access Restricted")}</h1>
+            <p className="text-muted-foreground mb-6">
+              {t("Volunteer opportunities are only available to donor accounts. Please use a donor account to apply.")}
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <Button onClick={() => navigate("/")}>{t("Return Home")}</Button>
+              <Button variant="outline" onClick={() => navigate("/profile")}>{t("View Profile")}</Button>
             </div>
           </Card>
         </div>

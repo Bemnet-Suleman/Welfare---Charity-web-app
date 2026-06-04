@@ -77,7 +77,7 @@ export default function Campaigns() {
               <SelectItem value="healthcare">{t("Healthcare")}</SelectItem>
               <SelectItem value="food">{t("Food & Nutrition")}</SelectItem>
               <SelectItem value="environment">{t("Environment")}</SelectItem>
-              <SelectItem value="emergency">{t("Emergency Relief")}</SelectItem>
+              <SelectItem value="Disaster Relief">{t("Emergency Relief")}</SelectItem>
               <SelectItem value="water">{t("Water & Sanitation")}</SelectItem>
             </SelectContent>
           </Select>

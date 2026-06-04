@@ -19,7 +19,7 @@ export function StoryCard({ quote, author, category, image }: StoryCardProps) {
   const { t } = useTranslation();
   const authorName = author?.name || "Anonymous";
   const authorRole = author?.role || "Beneficiary";
-  const authorAvatar = author?.avatar || image || undefined;
+  const authorAvatar = author?.avatar || undefined;
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 group">
@@ -48,7 +48,7 @@ export function StoryCard({ quote, author, category, image }: StoryCardProps) {
         <div className="flex items-center gap-3 pt-4 border-t border-border">
           <Avatar className="h-12 w-12">
             <AvatarImage src={authorAvatar} />
-            <AvatarFallback>{authorName[0]}</AvatarFallback>
+            <AvatarFallback>{(authorName || "").charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
             <p className="font-semibold" data-testid="story-author">{authorName}</p>

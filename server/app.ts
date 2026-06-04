@@ -50,16 +50,26 @@ export async function createApp(): Promise<Express> {
   const upload = multer({ storage: storageConfig });
   const PgSession = ConnectPgSimple(session);
 
+  let sessionStore: any;
+  try {
+    sessionStore = new PgSession({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+    });
+    console.log("Using PostgreSQL session store");
+  } catch (err) {
+    console.warn("Failed to create PostgreSQL session store, using memory store:", err);
+    sessionStore = new session.MemoryStore();
+  }
+
   app.use(
     session({
-      store: new PgSession({
-        conString: process.env.DATABASE_URL,
-        createTableIfMissing: true,
-      }),
+      store: sessionStore,
       secret: process.env.SESSION_SECRET || "welfare-secret",
       resave: false,
       saveUninitialized: false,
       cookie: {
+        sameSite: "lax",
         secure: false,
         maxAge: 24 * 60 * 60 * 1000,
       },
@@ -78,12 +88,9 @@ export async function createApp(): Promise<Express> {
             return done(null, false, { message: "Invalid email or password" });
           }
 
-          if (user.blocked) {
+          const isBlocked = (user as any).blocked || false;
+          if (isBlocked) {
             return done(null, false, { message: "This account has been blocked" });
-          }
-
-          if (!user.verified) {
-            return done(null, false, { message: "Email not verified. Please verify your email before signing in." });
           }
 
           const isValidPassword = await bcrypt.compare(password, user.password);

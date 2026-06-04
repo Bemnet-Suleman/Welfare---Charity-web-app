@@ -58,11 +58,19 @@ export default function Register() {
       const result = await response.json();
       if (result.verificationLink) {
         setVerificationLink(result.verificationLink);
+        try {
+          const url = new URL(result.verificationLink);
+          setLocation(url.pathname);
+        } catch {
+          setLocation('/verify-email');
+        }
+      } else {
+        toast({
+          title: t("Registration Successful"),
+          description: t("Please verify your email before signing in."),
+        });
+        setLocation('/login');
       }
-      toast({
-        title: t("Registration Successful"),
-        description: t("Please verify your email before signing in."),
-      });
     } catch (error: any) {
       toast({
         title: t("Registration Failed"),
@@ -122,7 +130,7 @@ export default function Register() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="firstName">First Name</Label>
+                  <Label htmlFor="firstName">{t("First Name")}</Label>
                   <Input 
                     id="firstName" 
                     placeholder="John" 
@@ -132,7 +140,7 @@ export default function Register() {
                   {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="lastName">Last Name</Label>
+                  <Label htmlFor="lastName">{t("Last Name")}</Label>
                   <Input 
                     id="lastName" 
                     placeholder="Doe" 
@@ -144,7 +152,7 @@ export default function Register() {
               </div>
 
               <div>
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">{t("Email Address")}</Label>
                 <Input 
                   id="email" 
                   type="email" 
@@ -156,7 +164,7 @@ export default function Register() {
               </div>
 
               <div>
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("Password")}</Label>
                 <Input 
                   id="password" 
                   type="password" 
@@ -168,7 +176,7 @@ export default function Register() {
               </div>
 
               <div>
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">{t("Confirm Password")}</Label>
                 <Input 
                   id="confirmPassword" 
                   type="password" 
@@ -188,7 +196,7 @@ export default function Register() {
                 data-testid="checkbox-terms"
               />
               <Label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer">
-                I agree to the <a href="/terms" className="text-primary hover:underline">Terms of Service</a> and <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
+                {t("I agree to the ")} <a href="/terms" className="text-primary hover:underline">{t("Terms of Service")}</a> {t("and")} <a href="/privacy" className="text-primary hover:underline">{t("Privacy Policy")}</a>
               </Label>
             </div>
             {errors.agreedToTerms && <p className="text-red-500 text-sm mt-1">{errors.agreedToTerms.message}</p>}
@@ -200,7 +208,7 @@ export default function Register() {
               disabled={isSubmitting}
               data-testid="button-register"
             >
-              {isSubmitting ? "Creating Account..." : "Create Account"}
+              {isSubmitting ? t("Creating Account...") : t("Create Account")}
             </Button>
 
             {verificationLink && (
@@ -210,7 +218,7 @@ export default function Register() {
             )}
 
             <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              {t("Already have an account?")}{" "}
               <Link href="/login">
                 <a className="text-primary hover:underline font-medium">Sign in</a>
               </Link>

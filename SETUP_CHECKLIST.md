@@ -61,7 +61,15 @@ In Vercel Dashboard → Settings → Environment Variables:
   - Save somewhere safe
   - Must be 32+ characters
 
-- [ ] Verify both are set and saved
+- [ ] Add email settings for verification
+  - `SMTP_HOST` — your SMTP server hostname
+  - `SMTP_PORT` — usually `587` for TLS or `465` for SSL
+  - `SMTP_SECURE` — `true` for SSL, `false` for TLS
+  - `SMTP_USER` — SMTP login username
+  - `SMTP_PASSWORD` — SMTP login password
+  - `EMAIL_FROM` — sender address, e.g. `noreply@yourdomain.com`
+
+- [ ] Verify all variables are set and saved
 
 ### Deploy
 - [ ] Click "Deploy" button

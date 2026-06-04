@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
+import { formatLargeNumber } from "@/lib/utils";
 
 const heroImages = [
   "/attached_assets/Hero.jpg",
@@ -135,7 +136,7 @@ export function HeroSection() {
             <div className="flex items-center justify-center gap-3 mb-2">
               <TrendingUp className="h-6 w-6 text-secondary" />
               <span className="text-4xl font-bold text-white font-['Space_Grotesk']" data-testid="stat-donations" aria-label={`${stats.donations} donations raised`}>
-                ${(stats.donations / 1000).toFixed(0)}{t("K")}
+                {formatLargeNumber(stats.donations, t)} 
               </span>
             </div>
             <p className="text-white/80">{t("Donations Raised")}</p>
@@ -145,7 +146,7 @@ export function HeroSection() {
             <div className="flex items-center justify-center gap-3 mb-2">
               <Heart className="h-6 w-6 text-accent fill-accent" />
               <span className="text-4xl font-bold text-white font-['Space_Grotesk']" data-testid="stat-lives">
-                {(stats.lives / 1000).toFixed(1)}{t("K")}
+                {formatLargeNumber(stats.lives, t)}
               </span>
             </div>
             <p className="text-white/80">{t("Lives Helped")}</p>
@@ -155,7 +156,7 @@ export function HeroSection() {
             <div className="flex items-center justify-center gap-3 mb-2">
               <Users className="h-6 w-6 text-primary" />
               <span className="text-4xl font-bold text-white font-['Space_Grotesk']" data-testid="stat-volunteers">
-                {(stats.volunteers / 1000).toFixed(1)}{t("K")}
+                {formatLargeNumber(stats.volunteers, t)}
               </span>
             </div>
             <p className="text-white/80">{t("Active Volunteers")}</p>

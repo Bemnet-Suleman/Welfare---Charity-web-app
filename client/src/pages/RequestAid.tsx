@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, HandHeart } from "lucide-react";
 import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 
@@ -24,7 +24,7 @@ export default function RequestAid() {
 
   const { data: user, isLoading: authLoading } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
+    queryFn: fetchCurrentUser,
   });
 
   const handleSubmit = async () => {

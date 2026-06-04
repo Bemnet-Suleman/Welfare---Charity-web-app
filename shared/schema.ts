@@ -30,6 +30,7 @@ export const campaigns = pgTable("campaigns", {
   status: text("status").default("active").notNull(), // active, completed, paused, emergency
   urgent: boolean("urgent").default(false),
   location: text("location"),
+  archived: boolean("archived").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -55,6 +56,7 @@ export const stories = pgTable("stories", {
   content: text("content").notNull(),
   image: text("image"),
   author: jsonb("author").$type<z.infer<typeof authorSchema>>(),
+  authorId: varchar("author_id").references(() => users.id),
   campaignId: varchar("campaign_id").references(() => campaigns.id),
   published: boolean("published").default(false),
   createdAt: timestamp("created_at").defaultNow(),
@@ -86,13 +88,13 @@ export const aidRequests = pgTable("aid_requests", {
 });
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  email: true,
-  fullName: true,
-  role: true,
-  avatar: true,
+export const insertUserSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+  email: z.string().email("Invalid email address"),
+  fullName: z.string().optional().nullable().default(""),
+  role: z.string().optional().default("donor"),
+  avatar: z.string().optional().nullable().default(null),
 });
 
 export const insertCampaignSchema = createInsertSchema(campaigns).omit({

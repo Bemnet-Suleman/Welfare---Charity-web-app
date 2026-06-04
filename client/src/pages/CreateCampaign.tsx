@@ -8,8 +8,8 @@ import { Target } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { useLocation, useParams } from "wouter";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 
 const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1640622656785-4fddbd3b4c6a?w=800&q=80";
 
@@ -23,11 +23,14 @@ export default function CreateCampaign() {
   const [goal, setGoal] = useState("");
   const [duration, setDuration] = useState("");
   const [location, setLocation] = useState("");
+  const [imageUrl, setImageUrl] = useState(DEFAULT_IMAGE);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState(DEFAULT_IMAGE);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
+    queryFn: fetchCurrentUser,
     retry: 1,
     staleTime: 1000 * 60 * 5,
   });
@@ -38,6 +41,7 @@ export default function CreateCampaign() {
     enabled: isEditing,
   });
 
+  const [, setLocation] = useLocation();
   const user = userData as { id: string; role?: string } | undefined;
   const isAdmin = user?.role === "admin" || user?.role === "system_admin";
 
@@ -56,6 +60,9 @@ export default function CreateCampaign() {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         setDuration(diffDays.toString());
       }
+      const existingImage = campaignData.image || DEFAULT_IMAGE;
+      setImageUrl(existingImage);
+      setPreviewUrl(existingImage);
     }
   }, [campaignData]);
 
@@ -95,16 +102,16 @@ export default function CreateCampaign() {
       formData.append("startDate", startDate.toISOString());
       formData.append("endDate", endDate.toISOString());
 
-      const imageInput = document.getElementById("image") as HTMLInputElement;
-      if (imageInput?.files?.[0]) {
-        formData.append("image", imageInput.files[0]);
-      } else {
+      if (selectedImageFile) {
+        formData.append("image", selectedImageFile);
+      } else if (!isEditing) {
         formData.append("image", DEFAULT_IMAGE);
       }
 
       if (isEditing) {
         await apiRequest("PUT", `/api/campaigns/${params.id}`, formData);
         alert(t("Campaign updated successfully."));
+        setLocation("/admin");
       } else {
         await apiRequest("POST", "/api/campaigns", formData);
         alert(t("Campaign submitted successfully."));
@@ -114,6 +121,8 @@ export default function CreateCampaign() {
         setDuration("");
         setCategory("");
         setLocation("");
+        setImageUrl(DEFAULT_IMAGE);
+        setSelectedImageFile(null);
       }
     } catch (err) {
       console.error(err);
@@ -122,6 +131,15 @@ export default function CreateCampaign() {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedImageFile) {
+      const objectUrl = URL.createObjectURL(selectedImageFile);
+      setPreviewUrl(objectUrl);
+      return () => URL.revokeObjectURL(objectUrl);
+    }
+    setPreviewUrl(imageUrl || DEFAULT_IMAGE);
+  }, [selectedImageFile, imageUrl]);
 
   if (userLoading || (isEditing && campaignLoading)) {
     return <div className="min-h-screen py-24 text-center">{t("Loading...")}</div>;
@@ -166,13 +184,13 @@ export default function CreateCampaign() {
                   <SelectValue placeholder={t("Select a category")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="education">{t("Education")}</SelectItem>
-                  <SelectItem value="healthcare">{t("Healthcare")}</SelectItem>
-                  <SelectItem value="disaster-relief">{t("Disaster Relief")}</SelectItem>
-                  <SelectItem value="food-nutrition">{t("Food & Nutrition")}</SelectItem>
-                  <SelectItem value="water-sanitation">{t("Water & Sanitation")}</SelectItem>
-                  <SelectItem value="environment">{t("Environment")}</SelectItem>
-                  <SelectItem value="other">{t("Other")}</SelectItem>
+                    <SelectItem value="Education">{t("Education")}</SelectItem>
+                  <SelectItem value="Healthcare">{t("Healthcare")}</SelectItem>
+                  <SelectItem value="Disaster Relief">{t("Disaster Relief")}</SelectItem>
+                  <SelectItem value="Food & Nutrition">{t("Food & Nutrition")}</SelectItem>
+                  <SelectItem value="Water & Sanitation">{t("Water & Sanitation")}</SelectItem>
+                  <SelectItem value="Environment">{t("Environment")}</SelectItem>
+                  <SelectItem value="Other">{t("Other")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -222,12 +240,24 @@ export default function CreateCampaign() {
               <Label htmlFor="image" className="text-lg font-semibold">{t("Campaign Image")}</Label>
               <Input
                 id="image"
+                name="image"
                 type="file"
                 accept="image/*"
                 className="mt-2"
                 data-testid="input-image-file"
+                onChange={(event) => setSelectedImageFile(event.target.files?.[0] ?? null)}
               />
-              <p className="text-sm text-muted-foreground mt-2">{t("Upload a campaign image file.")}</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {isEditing
+                  ? t("Upload a new image to replace the current one, or leave this empty to keep the existing image.")
+                  : t("Upload a campaign image file.")}
+              </p>
+              {previewUrl && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-muted-foreground">{t("Current image preview")}</p>
+                  <img src={previewUrl} alt={t("Campaign preview") as string} className="mt-2 h-40 w-full object-cover rounded-lg" />
+                </div>
+              )}
             </div>
 
             <div>
@@ -249,7 +279,13 @@ export default function CreateCampaign() {
                 disabled={!isAdmin || isSubmitting}
                 data-testid="button-submit-campaign"
               >
-                {isSubmitting ? t("Creating...") : t("Create Campaign")}
+                {isSubmitting
+                  ? isEditing
+                    ? t("Updating...")
+                    : t("Creating...")
+                  : isEditing
+                    ? t("Update Campaign")
+                    : t("Create Campaign")}
               </Button>
             </div>
           </div>

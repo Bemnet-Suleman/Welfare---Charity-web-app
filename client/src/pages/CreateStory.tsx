@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 
 export default function CreateStory() {
   const { t } = useTranslation();
@@ -18,15 +18,19 @@ export default function CreateStory() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [authorName, setAuthorName] = useState("");
+  const [authorId, setAuthorId] = useState("");
   const [authorRole, setAuthorRole] = useState("Beneficiary");
   const [category, setCategory] = useState("Impact Story");
   const [image, setImage] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
   const [published, setPublished] = useState(false);
+  const [campaignId, setCampaignId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
+    queryFn: fetchCurrentUser,
     retry: 1,
     staleTime: 1000 * 60 * 5,
   });
@@ -41,16 +45,26 @@ export default function CreateStory() {
   const isAdmin = user?.role === "admin" || user?.role === "system_admin";
 
   useEffect(() => {
+    if (typeof window !== "undefined" && !isEditing) {
+      const query = new URLSearchParams(window.location.search);
+      const providedCampaignId = query.get("campaignId");
+      if (providedCampaignId) {
+        setCampaignId(providedCampaignId);
+      }
+    }
+
     if (storyData) {
       setTitle(storyData.title || "");
       setContent(storyData.content || "");
       setAuthorName(storyData.author?.name || "");
+      setAuthorId(storyData.author?.id || storyData.authorId || "");
       setAuthorRole(storyData.author?.role || "Beneficiary");
       setCategory(storyData.category || "Impact Story");
       setImage(storyData.image || "");
       setPublished(Boolean(storyData.published));
+      setCampaignId(storyData.campaignId || "");
     }
-  }, [storyData]);
+  }, [storyData, isEditing]);
 
   const handleSubmit = async () => {
     if (!isAdmin) {
@@ -66,35 +80,58 @@ export default function CreateStory() {
     setIsSubmitting(true);
 
     try {
-      const payload = {
+          const payload: any = {
         title,
         content,
-        image: image || undefined,
         author: {
           name: authorName,
           role: authorRole,
           avatar: image || undefined,
         },
+            authorId: authorId || undefined,
         category: category || "Impact Story",
+        campaignId: campaignId || undefined,
         published,
       };
 
-      if (isEditing) {
-        await apiRequest("PUT", `/api/stories/${params.id}`, payload);
-        alert(t("Story updated successfully."));
+      if (!isEditing || image) {
+        payload.image = image || undefined;
+      }
+
+      const endpoint = isEditing ? `/api/stories/${params.id}` : "/api/stories";
+      const method = isEditing ? "PUT" : "POST";
+
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+        formData.append("title", title);
+        formData.append("content", content);
+        formData.append("author", JSON.stringify(payload.author));
+        if (authorId) formData.append("authorId", authorId);
+        formData.append("category", payload.category);
+        if (payload.campaignId) formData.append("campaignId", payload.campaignId);
+        formData.append("published", String(payload.published));
+
+        await apiRequest(method, endpoint, formData);
       } else {
-        await apiRequest("POST", "/api/stories", payload);
-        alert(t("Story created successfully."));
+        await apiRequest(method, endpoint, payload);
+      }
+
+      alert(t(isEditing ? "Story updated successfully." : "Story created successfully."));
+
+      if (!isEditing) {
         setTitle("");
         setContent("");
         setAuthorName("");
+        setAuthorId("");
         setAuthorRole("Beneficiary");
         setCategory("Impact Story");
         setImage("");
+        setSelectedFile(null);
         setPublished(false);
       }
 
-      window.location.href = isEditing ? "/admin" : "/admin";
+      window.location.href = "/admin";
     } catch (error: any) {
       console.error(error);
       alert(t(isEditing ? "Failed to update story." : "Failed to create story."));
@@ -102,6 +139,16 @@ export default function CreateStory() {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedFile) {
+      const objectUrl = URL.createObjectURL(selectedFile);
+      setPreviewUrl(objectUrl);
+      return () => URL.revokeObjectURL(objectUrl);
+    }
+
+    setPreviewUrl(image || "");
+  }, [selectedFile, image]);
 
   if (userLoading || (isEditing && storyLoading)) {
     return <div className="min-h-screen py-24 text-center">{t("Loading...")}</div>;
@@ -120,6 +167,11 @@ export default function CreateStory() {
               ? t("Update the story content, author details, and publication status.")
               : t("Add a new impact story from a donor, volunteer, or beneficiary.")}
           </p>
+          {!isEditing && campaignId && (
+            <p className="text-sm text-muted-foreground max-w-2xl mx-auto mt-2">
+              {t("This update will be attached to campaign ID")} {campaignId}
+            </p>
+          )}
           {!isAdmin && (
             <p className="text-sm text-red-500 mt-2">{t("Only Charity Admin can manage stories.")}</p>
           )}
@@ -153,7 +205,7 @@ export default function CreateStory() {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <Label htmlFor="authorName" className="text-lg font-semibold">
                   {t("Author Name")}
@@ -181,6 +233,21 @@ export default function CreateStory() {
                     <SelectItem value="Staff">{t("Staff")}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="authorId" className="text-lg font-semibold">
+                  {t("Author ID")}
+                </Label>
+                <Input
+                  id="authorId"
+                  value={authorId}
+                  onChange={(event) => setAuthorId(event.target.value)}
+                  placeholder={t("Optional admin author ID")}
+                  className="mt-2"
+                />
+                <p className="text-sm text-muted-foreground mt-2">
+                  {t("Optional: provide the user ID of an existing author to link the story to that profile.")}
+                </p>
               </div>
             </div>
 
@@ -213,6 +280,28 @@ export default function CreateStory() {
                   placeholder={t("https://example.com/story-photo.jpg")}
                   className="mt-2"
                 />
+                <Label htmlFor="imageFile" className="text-lg font-semibold mt-4 block">
+                  {t("Upload Image")}
+                </Label>
+                <input
+                  id="imageFile"
+                  name="image"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                  className="mt-2"
+                />
+                <p className="text-sm text-muted-foreground mt-2">
+                  {isEditing
+                    ? t("Leave this empty to keep the current image, or upload a new one to replace it.")
+                    : t("Upload a story image file or provide an image URL.")}
+                </p>
+                {previewUrl ? (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-muted-foreground">{t("Current image preview")}</p>
+                    <img src={previewUrl} alt={t("Story preview") as string} className="mt-2 h-40 w-full object-cover rounded-lg" />
+                  </div>
+                ) : null}
               </div>
             </div>
 

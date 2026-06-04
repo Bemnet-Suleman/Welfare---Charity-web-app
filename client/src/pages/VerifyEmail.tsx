@@ -8,14 +8,18 @@ import { useTranslation } from "react-i18next";
 export default function VerifyEmail() {
   const { token } = useParams();
   const { t } = useTranslation();
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "pending" | "success" | "error">("loading");
   const [message, setMessage] = useState<string>("");
 
   useEffect(() => {
     async function verify() {
       if (!token) {
-        setStatus("error");
-        setMessage(t("Verification token is missing."));
+        setStatus("pending");
+        setMessage(
+          t(
+            "A verification email has been sent to your address. Click the link in the email to complete verification."
+          )
+        );
         return;
       }
 
@@ -52,6 +56,12 @@ export default function VerifyEmail() {
             <div className="space-x-3">
               <Link href="/login">
                 <Button>{t("Go to Login")}</Button>
+              </Link>
+            </div>
+          ) : status === "pending" ? (
+            <div className="space-x-3 justify-center">
+              <Link href="/login">
+                <Button>{t("Back to Login")}</Button>
               </Link>
             </div>
           ) : status === "error" ? (

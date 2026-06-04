@@ -3,14 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 
 export function Footer() {
   const { t } = useTranslation();
 
   const { data: userData } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
+    queryFn: fetchCurrentUser,
     retry: 1,
     staleTime: 1000 * 60 * 10,
   });
@@ -21,7 +21,7 @@ export function Footer() {
   return (
     <footer className="bg-card border-t border-card-border">
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Heart className="h-6 w-6 text-accent fill-accent" />
@@ -62,7 +62,6 @@ export function Footer() {
             <h3 className="font-semibold mb-4">{t("Get Involved")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/volunteer"><a className="hover:text-foreground transition-colors">{t("Volunteer")}</a></Link></li>
-              <li><Link href="/create-campaign"><a className="hover:text-foreground transition-colors">{t("Start a Campaign")}</a></Link></li>
               <li><Link href="/request-aid"><a className="hover:text-foreground transition-colors">{t("Request Aid")}</a></Link></li>
               <li><Link href="/register"><a className="hover:text-foreground transition-colors">{t("Join Welfare")}</a></Link></li>
             </ul>
@@ -74,7 +73,7 @@ export function Footer() {
               <li><Link href="/stories"><a className="hover:text-foreground transition-colors">{t("Impact Stories")}</a></Link></li>
               <li><Link href="/login"><a className="hover:text-foreground transition-colors">{t("Sign In")}</a></Link></li>
               <li><Link href="/register"><a className="hover:text-foreground transition-colors">{t("Create Account")}</a></Link></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">{t("FAQ")}</a></li>
+              <li><Link href="/faq"><a className="hover:text-foreground transition-colors">{t("FAQ")}</a></Link></li>
             </ul>
           </div>
         </div>
@@ -83,8 +82,9 @@ export function Footer() {
           <p>{t("© 2025 Welfare. All rights reserved.")}</p>
           <p>{t("Designed with care by the")} <i>{t("Digital hands Team")}</i></p>
           <div className="flex gap-6">
-            <a href="#" className="hover:text-foreground transition-colors">{t("Privacy Policy")}</a>
-            <a href="#" className="hover:text-foreground transition-colors">{t("Terms of Service")}</a>
+            <Link href="/privacy"><a className="hover:text-foreground transition-colors">{t("Privacy Policy")}</a></Link>
+            <Link href="/terms"><a className="hover:text-foreground transition-colors">{t("Terms of Service")}</a></Link>
+            <Link href="/about"><a className="hover:text-foreground transition-colors">{t("About Us")}</a></Link>
           </div>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getRoleLabel } from "@/lib/utils";
@@ -23,7 +23,7 @@ export function Header() {
 
   const { data: userData } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
+    queryFn: fetchCurrentUser,
     retry: 1,
     staleTime: 1000 * 60 * 5,
   });
@@ -56,7 +56,7 @@ export function Header() {
             <span className="text-xl font-bold font-['Poppins']">{t("Welfare")}</span>
           </Link>
 
-          <nav className="hidden md:flex items-center flex-1 justify-center gap-8">
+          <nav className="hidden md:flex items-center justify-center gap-8 mx-auto">
             <div className="flex items-center gap-2">
               <Link href="/campaigns">
                 <Button variant="ghost" data-testid="link-campaigns">{t("Campaigns")}</Button>
@@ -65,10 +65,13 @@ export function Header() {
                 <Button variant="ghost" data-testid="link-volunteer">{t("Volunteer")}</Button>
               </Link>
               <Link href="/stories">
-                <Button variant="ghost" data-testid="link-stories">{t("Stories")}</Button>
+                <Button variant="ghost" className="hidden lg:inline-flex" data-testid="link-stories">{t("Stories")}</Button>
               </Link>
               <Link href="/transparency">
-                <Button variant="ghost" data-testid="link-transparency">{t("Transparency")}</Button>
+                <Button variant="ghost" className="hidden lg:inline-flex" data-testid="link-transparency">{t("Transparency")}</Button>
+              </Link>
+              <Link href="/about">
+                <Button variant="ghost" className="hidden lg:inline-flex" data-testid="link-about">{t("About Us")}</Button>
               </Link>
               {isLoggedIn && (
                 <Link href="/profile">
@@ -92,7 +95,7 @@ export function Header() {
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={user?.avatar} alt={user?.fullName || user?.username} />
-                        <AvatarFallback>{(user?.fullName || user?.username || "U")[0]}</AvatarFallback>
+                        <AvatarFallback>{(user?.fullName || user?.username || "U").charAt(0).toUpperCase()}</AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
@@ -139,17 +142,38 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={toggleLanguage} aria-label="Switch language">
+            <Button variant="ghost" size="sm" onClick={toggleLanguage} aria-label={t("Switch language")}>
               {i18n.language === 'en' ? 'አማ' : 'EN'}
             </Button>
             <ThemeToggle />
+            <div className="flex items-center gap-2 md:hidden">
+              {isLoggedIn ? (
+                <Link href="/profile">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" aria-label={t("Profile")}> 
+                      <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.avatar} alt={user?.fullName || user?.username} />
+                      <AvatarFallback>{(user?.fullName || user?.username || "U").charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button variant="outline" size="sm" className="min-w-[88px]">{t("Login")}</Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button size="sm" className="min-w-[88px]">{t("Join")}</Button>
+                  </Link>
+                </>
+              )}
+            </div>
             <Button
               variant="ghost"
               size="icon"
               className="md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               data-testid="button-mobile-menu"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-label={mobileMenuOpen ? t("Close menu") : t("Open menu")}
               aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -170,19 +194,25 @@ export function Header() {
               </Button>
             </Link>
             <Link href="/stories">
-              <Button variant="ghost" className="w-full justify-start" data-testid="link-stories-mobile">
+              <Button variant="ghost" className="w-full justify-start" data-testid="link-stories-mobile" onClick={() => setMobileMenuOpen(false)}>
                 {t("Stories")}
               </Button>
             </Link>
             <Link href="/transparency">
-              <Button variant="ghost" className="w-full justify-start" data-testid="link-transparency-mobile">
+              <Button variant="ghost" className="w-full justify-start" data-testid="link-transparency-mobile" onClick={() => setMobileMenuOpen(false)}>
                 {t("Transparency")}
+              </Button>
+            </Link>
+            <Link href="/about">
+              <Button variant="ghost" className="w-full justify-start" data-testid="link-about-mobile" onClick={() => setMobileMenuOpen(false)}>
+                {t("About Us")}
               </Button>
             </Link>
             <Link href="/donate">
               <Button 
                 className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border" 
                 data-testid="button-donate-now-mobile"
+                onClick={() => setMobileMenuOpen(false)}
               >
                 <Heart className="h-4 w-4 mr-2 fill-current" />
                 {t("Donate Now")}
@@ -193,7 +223,7 @@ export function Header() {
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={user?.avatar} alt={user?.fullName || user?.username} />
-                    <AvatarFallback>{(user?.fullName || user?.username || "U")[0]}</AvatarFallback>
+                    <AvatarFallback>{(user?.fullName || user?.username || "U").charAt(0).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <p className="font-medium truncate">{user?.fullName || user?.username}</p>
@@ -201,7 +231,7 @@ export function Header() {
                   </div>
                 </div>
                 <Link href="/profile">
-                  <Button className="w-full" data-testid="button-profile-mobile">{t("Profile")}</Button>
+                  <Button className="w-full" data-testid="button-profile-mobile" onClick={() => setMobileMenuOpen(false)}>{t("Profile")}</Button>
                 </Link>
                 <Button
                   variant="outline"

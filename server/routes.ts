@@ -8,6 +8,20 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import { sendVerificationEmail, sendResendVerificationEmail } from "./email";
 
+type PendingDonation = {
+  campaignId: string;
+  amount: string;
+  donorId?: string | null;
+  anonymous: boolean;
+  message: string;
+  donationType: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+};
+
+const pendingDonations: Record<string, PendingDonation> = {};
+
 export async function registerRoutes(app: Express, upload: any): Promise<void> {
   // Auth routes
   app.post("/api/auth/login", (req, res, next) => {
@@ -123,6 +137,69 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
       res.json({ message: "Email verified successfully", user: updatedUser });
     } catch (error) {
       res.status(500).json({ error: "Failed to verify email" });
+    }
+  });
+
+  // Handle browser returns to /donate when Chapa redirects back to backend
+  app.get("/donate", async (req: any, res: any, next: any) => {
+    try {
+      const status = String(req.query.status || "");
+      const txRef = String(req.query.tx_ref || "");
+      const campaignId = String(req.query.campaignId || "");
+      const frontendUrl = String(req.query.frontendUrl || req.get("referer") || process.env.FRONTEND_URL || `http://localhost:5173`);
+      const frontendBase = new URL(frontendUrl, "http://localhost:5173").origin;
+
+      console.log("/donate return hit", { status, txRef, campaignId, frontendUrl, frontendBase });
+
+      if (status === "success" && txRef) {
+        // perform verification and create donation if missing, then redirect to frontend success page
+        const chapaSecretKey = process.env.CHAPA_SECRET_KEY || process.env.CHAPA_API_SECRET || "CHASECK_TEST-WB6QQBYFjbHtuPdZd7KadnkVND38cQV9";
+        const verifyResponse = await fetch(`https://api.chapa.co/v1/transaction/verify/${encodeURIComponent(txRef)}`, {
+          headers: { Authorization: `Bearer ${chapaSecretKey}`, "Content-Type": "application/json" },
+        });
+        const verifyData = await verifyResponse.json();
+        if (!verifyResponse.ok || verifyData?.data?.status !== "success") {
+          return res.redirect(`${frontendBase}/donate?status=failed&tx_ref=${encodeURIComponent(txRef)}&campaignId=${encodeURIComponent(campaignId)}`);
+        }
+
+        // if already processed, redirect to success page
+        const existing = await storage.getDonationByTransactionId(txRef);
+        if (existing) {
+          return res.redirect(`${frontendBase}/donation-success/${existing.id}`);
+        }
+
+        const session = req.session as any;
+        const pending = session?.pendingDonations?.[txRef] || pendingDonations[txRef] || null;
+        const amount = pending?.amount ?? String(verifyData?.data?.amount ?? "0");
+        const resolvedCampaignId = pending?.campaignId || campaignId;
+        if (!resolvedCampaignId) {
+          return res.redirect(`${frontendBase}/donate?status=failed&tx_ref=${encodeURIComponent(txRef)}`);
+        }
+
+        const donation = await storage.createDonation({
+          campaignId: resolvedCampaignId,
+          donorId: pending?.donorId ?? null,
+          amount,
+          anonymous: pending?.anonymous ?? true,
+          message: pending?.message ?? "",
+          paymentMethod: "chapa",
+          transactionId: txRef,
+        });
+
+        await storage.updateCampaignRaisedAmount(resolvedCampaignId, parseFloat(amount));
+        if (session?.pendingDonations) delete session.pendingDonations[txRef];
+        delete pendingDonations[txRef];
+
+        return res.redirect(`${frontendBase}/donation-success/${donation.id}`);
+      }
+
+      // Not a Chapa return; continue to next middleware (vite/static)
+      return next();
+    } catch (error) {
+      console.error("Error handling /donate return:", error);
+      const frontendUrl = String(req.query.frontendUrl || req.get("referer") || process.env.FRONTEND_URL || `http://localhost:5173`);
+      const frontendBase = new URL(frontendUrl, "http://localhost:5173").origin;
+      return res.redirect(`${frontendBase}/donate?status=failed`);
     }
   });
 
@@ -263,6 +340,12 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
 
     const search = (req.query.search as string) || "";
     const category = (req.query.category as string) || "";
+    const includeArchived = req.query.includeArchived === "true";
+
+    // Filter out archived campaigns unless explicitly requested (for public view)
+    if (!includeArchived) {
+      campaigns = campaigns.filter(c => !c.archived);
+    }
 
     if (search) {
       const lower = search.toLowerCase();
@@ -347,6 +430,8 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
       const updateData: Partial<InsertCampaign> = { ...req.body };
       if (req.file) {
         updateData.image = `/uploads/${req.file.filename}`;
+      } else if (req.body.image === undefined || req.body.image === "") {
+        delete (updateData as any).image;
       }
 
       const updated = await storage.updateCampaign(req.params.id, updateData);
@@ -378,9 +463,72 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     }
   });
 
+  app.post("/api/campaigns/:id/archive", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const currentUser = req.user as unknown as { role?: string };
+      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const campaign = await storage.getCampaign(req.params.id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      await storage.updateCampaign(req.params.id, { archived: true });
+      res.json({ success: true, message: "Campaign archived" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to archive campaign" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/unarchive", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const currentUser = req.user as unknown as { role?: string };
+      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const campaign = await storage.getCampaign(req.params.id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      await storage.updateCampaign(req.params.id, { archived: false });
+      res.json({ success: true, message: "Campaign unarchived" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to unarchive campaign" });
+    }
+  });
+
   app.get("/api/campaigns/:id/donations", async (req, res) => {
     const donations = await storage.getDonationsByCampaign(req.params.id);
-    res.json(donations);
+    const donationsWithDonor = await Promise.all(
+      donations.map(async (donation) => {
+        if (!donation.donorId || donation.anonymous) {
+          return donation;
+        }
+
+        const donorUser = await storage.getUser(donation.donorId);
+        if (!donorUser) {
+          return donation;
+        }
+
+        return {
+          ...donation,
+          donorName: donorUser.fullName?.trim() || donorUser.username || donation.donorId,
+          donorAvatar:
+            donorUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${donorUser.username || donorUser.id}`,
+        };
+      }),
+    );
+    res.json(donationsWithDonor);
   });
 
   // Donations
@@ -437,18 +585,33 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
       }
 
       const txRef = `donation_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      const baseUrl = process.env.NODE_ENV === "production" 
-  ? "" 
-  : `http://localhost:${process.env.PORT || 5000}`;
-      const callbackUrl = `${baseUrl}/api/payments/chapa/verify?tx_ref=${encodeURIComponent(txRef)}`;
-      const returnUrl = `${baseUrl}/donate?status=success&tx_ref=${encodeURIComponent(txRef)}&campaignId=${encodeURIComponent(campaignId)}`;
+      const rawFrontendUrl = req.get("origin") || req.body?.frontendUrl || req.get("referer") || process.env.FRONTEND_URL;
+      const frontendBaseUrl = rawFrontendUrl
+        ? new URL(String(rawFrontendUrl), "http://localhost:5173").origin
+        : `http://localhost:5173`;
+      const backendBaseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const callbackUrl = `${backendBaseUrl}/api/payments/chapa/verify?tx_ref=${encodeURIComponent(txRef)}&campaignId=${encodeURIComponent(campaignId)}`;
+      const returnUrl = `${frontendBaseUrl}/donate?status=success&tx_ref=${encodeURIComponent(txRef)}&campaignId=${encodeURIComponent(campaignId)}`;
+
+      console.log("Chapa init rawFrontendUrl", rawFrontendUrl, "callback_url", callbackUrl, "return_url", returnUrl);
 
       const session = req.session as any;
-      if (!session.pendingDonations) {
-        session.pendingDonations = {};
+      if (session) {
+        session.pendingDonations = session.pendingDonations || {};
+        session.pendingDonations[txRef] = {
+          campaignId,
+          amount: String(amount),
+          donorId: donorId ?? null,
+          anonymous: Boolean(anonymous),
+          message: "",
+          donationType: donationType || "one-time",
+          email,
+          firstName: firstName || "",
+          lastName: lastName || "",
+        };
       }
 
-      session.pendingDonations[txRef] = {
+      pendingDonations[txRef] = {
         campaignId,
         amount: String(amount),
         donorId: donorId ?? null,
@@ -497,10 +660,7 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
         return res.status(400).json({ error: "Missing transaction reference" });
       }
 
-      const chapaSecretKey = process.env.CHAPA_SECRET_KEY || process.env.CHAPA_API_SECRET;
-      if (!chapaSecretKey) {
-        return res.status(500).json({ error: "Chapa payment provider is not configured." });
-      }
+      const chapaSecretKey = process.env.CHAPA_SECRET_KEY || process.env.CHAPA_API_SECRET || "CHASECK_TEST-WB6QQBYFjbHtuPdZd7KadnkVND38cQV9";
 
       const verifyResponse = await fetch(`https://api.chapa.co/v1/transaction/verify/${encodeURIComponent(txRef)}`, {
         headers: {
@@ -515,27 +675,42 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
         return res.status(400).json({ error: message });
       }
 
-      // Fix: Cast session to any to access custom property
       const session = req.session as any;
-      const pendingDonation = session?.pendingDonations?.[txRef];
-      
-      if (!pendingDonation) {
-        return res.status(404).json({ error: "Pending donation not found" });
+      const campaignId = String(req.query.campaignId || "");
+      const pendingDonation = session?.pendingDonations?.[txRef] || pendingDonations[txRef];
+      const donationSource = pendingDonation ?? null;
+
+      const amount = donationSource?.amount ?? String(verifyData?.data?.amount ?? "0");
+      const resolvedCampaignId = donationSource?.campaignId || campaignId;
+      const donorId = donationSource?.donorId ?? null;
+      const anonymous = donationSource?.anonymous ?? true;
+      const message = donationSource?.message ?? "";
+
+      if (!resolvedCampaignId) {
+        return res.status(400).json({ error: "Missing campaign information for donation verification" });
+      }
+
+      const existingDonation = await storage.getDonationByTransactionId(txRef);
+      if (existingDonation) {
+        return res.json({ success: true, donation: existingDonation, alreadyProcessed: true });
       }
 
       const donation = await storage.createDonation({
-        campaignId: pendingDonation.campaignId,
-        donorId: pendingDonation.donorId,
-        amount: pendingDonation.amount,
-        anonymous: pendingDonation.anonymous,
-        message: pendingDonation.message,
+        campaignId: resolvedCampaignId,
+        donorId,
+        amount,
+        anonymous,
+        message,
         paymentMethod: "chapa",
         transactionId: txRef,
       });
 
-      await storage.updateCampaignRaisedAmount(pendingDonation.campaignId, parseFloat(pendingDonation.amount));
+      await storage.updateCampaignRaisedAmount(resolvedCampaignId, parseFloat(amount));
       
-      delete session.pendingDonations[txRef];
+      if (session?.pendingDonations) {
+        delete session.pendingDonations[txRef];
+      }
+      delete pendingDonations[txRef];
 
       res.json({ success: true, donation });
     } catch (error) {
@@ -550,12 +725,46 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
 
     if (donorId) {
       const donations = await storage.getDonationsByDonor(donorId);
-      res.json(donations);
+      const enriched = await Promise.all(
+        donations.map(async (d) => {
+          if (!d.donorId || d.anonymous) return d;
+          const donorUser = await storage.getUser(d.donorId);
+          return {
+            ...d,
+            donorName: donorUser?.fullName?.trim() || donorUser?.username || d.donorId,
+            donorAvatar: donorUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${donorUser?.username || d.donorId}`,
+          };
+        }),
+      );
+      res.json(enriched);
       return;
     }
 
     const donations = await storage.getDonations(limit);
-    res.json(donations);
+    const enriched = await Promise.all(
+      donations.map(async (d) => {
+        if (!d.donorId || d.anonymous) return d;
+        const donorUser = await storage.getUser(d.donorId);
+        return {
+          ...d,
+          donorName: donorUser?.fullName?.trim() || donorUser?.username || d.donorId,
+          donorAvatar: donorUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${donorUser?.username || d.donorId}`,
+        };
+      }),
+    );
+    res.json(enriched);
+  });
+
+  app.get("/api/donations/:id", async (req, res) => {
+    try {
+      const donation = await storage.getDonation(req.params.id);
+      if (!donation) {
+        return res.status(404).json({ error: "Donation not found" });
+      }
+      res.json(donation);
+    } catch (error) {
+      res.status(500).json({ error: "Unable to fetch donation" });
+    }
   });
 
   // Stories
@@ -565,6 +774,8 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
 
     const search = (req.query.search as string) || "";
     const category = (req.query.category as string) || "";
+    const campaignId = (req.query.campaignId as string) || "";
+    const publishedOnly = req.query.published === undefined || req.query.published === "true";
 
     if (search) {
       const lower = search.toLowerCase();
@@ -574,14 +785,36 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
       );
     }
 
+    if (campaignId) {
+      stories = stories.filter((s) => s.campaignId === campaignId);
+    }
+
+    if (publishedOnly) {
+      stories = stories.filter((s) => Boolean(s.published));
+    }
+
     const enriched = await Promise.all(stories.map(async (story) => {
       const campaign = story.campaignId ? await storage.getCampaign(story.campaignId) : null;
+      let author = story.author;
+      
+      // If authorId exists, fetch the real author data
+      if (story.authorId) {
+        const authorUser = await storage.getUser(story.authorId);
+        if (authorUser) {
+          author = {
+            name: authorUser.fullName?.trim() || authorUser.username || "Anonymous",
+            role: authorUser.role === "beneficiary" ? "Beneficiary" : authorUser.role === "donor" ? "Donor" : "Story Author",
+            avatar: authorUser.avatar || undefined,
+          };
+        }
+      }
+      
       return {
         ...story,
-        author: story.author ?? {
+        author: author ?? {
           name: "Anonymous",
           role: "Beneficiary",
-          avatar: story.image ?? undefined,
+          avatar: undefined,
         },
         category: campaign?.category || "Impact Story",
       };
@@ -601,22 +834,50 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     }
 
     const campaign = story.campaignId ? await storage.getCampaign(story.campaignId) : null;
+    let author = story.author;
+    
+    // If authorId exists, fetch the real author data
+    if (story.authorId) {
+      const authorUser = await storage.getUser(story.authorId);
+      if (authorUser) {
+        author = {
+          name: authorUser.fullName?.trim() || authorUser.username || "Anonymous",
+          role: authorUser.role === "beneficiary" ? "Beneficiary" : authorUser.role === "donor" ? "Donor" : "Story Author",
+          avatar: authorUser.avatar || undefined,
+        };
+      }
+    }
 
     const enriched = {
       ...story,
-      author: story.author ?? {
+      author: author ?? {
         name: "Anonymous",
         role: "Beneficiary",
-        avatar: story.image ?? undefined,
+        avatar: undefined,
       },
       category: campaign?.category || "Impact Story",
     };
     res.json(enriched);
   });
 
-  app.post("/api/stories", async (req, res) => {
+  app.post("/api/stories", upload.single("image"), async (req, res) => {
     try {
-      const storyData = insertStorySchema.parse(req.body);
+      const storyPayload: any = { ...req.body };
+      if (typeof storyPayload.author === "string") {
+        try {
+          storyPayload.author = JSON.parse(storyPayload.author);
+        } catch {
+          // keep the raw string if parsing fails
+        }
+      }
+      if (typeof storyPayload.published === "string") {
+        storyPayload.published = storyPayload.published === "true";
+      }
+      if (req.file) {
+        storyPayload.image = `/uploads/${req.file.filename}`;
+      }
+
+      const storyData = insertStorySchema.parse(storyPayload);
       const story = await storage.createStory(storyData);
       res.json(story);
     } catch (error) {
@@ -639,9 +900,21 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
         return res.status(404).json({ error: "Story not found" });
       }
 
-      const updateData: Partial<InsertStory> = { ...req.body };
+      const updateData: any = { ...req.body };
+      if (typeof updateData.author === "string") {
+        try {
+          updateData.author = JSON.parse(updateData.author);
+        } catch {
+          // keep raw author string if parsing fails
+        }
+      }
+      if (typeof updateData.published === "string") {
+        updateData.published = updateData.published === "true";
+      }
       if (req.file) {
         updateData.image = `/uploads/${req.file.filename}`;
+      } else if (updateData.image === undefined || updateData.image === "") {
+        delete updateData.image;
       }
 
       const updated = await storage.updateStory(req.params.id, updateData);

@@ -7,14 +7,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Heart, CreditCard, Shield, CheckCircle2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { getRoleLabel } from "@/lib/utils";
+import { formatLargeNumber, getRoleLabel } from "@/lib/utils";
 
 const donationSchema = z.object({
   firstName: z.string().optional(),
@@ -33,7 +34,8 @@ export default function Donate() {
   const [hasInvalidCampaignToast, setHasInvalidCampaignToast] = useState(false);
   const { t } = useTranslation();
   const { toast } = useToast();
-  const quickAmounts = [10, 25, 50, 100, 250];
+  const [, setLocation] = useLocation();
+  const quickAmounts = [250, 500, 1000, 5000, 10000];
   const [isVerifying, setIsVerifying] = useState(false);
 
   const campaignIdFromUrl = typeof window !== "undefined"
@@ -47,7 +49,7 @@ export default function Donate() {
 
   const { data: userData } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then(res => res.json().then(({ user }: any) => user)),
+    queryFn: fetchCurrentUser,
     retry: 1,
     staleTime: 1000 * 60 * 5,
   });
@@ -73,6 +75,12 @@ export default function Donate() {
   const selectedCampaign = campaigns?.find(
     (c: any) => c.id === watchedCampaignId || c.id === campaignIdFromUrl,
   );
+
+  const amountValue = parseFloat(watchedAmount || "0");
+  const mealsSupported = Math.floor(amountValue / 250);
+  const schoolSuppliesSupported = Math.floor(amountValue / 2500);
+  const patientsSupported = Math.floor(amountValue / 5000);
+  const peopleWithWater = Math.floor(amountValue / 250);
 
   const pageTitle = selectedCampaign
     ? t("Donate to {{title}}", { title: selectedCampaign.title })
@@ -126,8 +134,17 @@ export default function Donate() {
     const verifyDonation = async () => {
       setIsVerifying(true);
       try {
-        const response = await apiRequest("GET", `/api/payments/chapa/verify?tx_ref=${encodeURIComponent(txRef)}`);
-        await response.json();
+        const campaignId = new URLSearchParams(window.location.search).get("campaignId") || "";
+        const verifyUrl = `/api/payments/chapa/verify?tx_ref=${encodeURIComponent(txRef)}${campaignId ? `&campaignId=${encodeURIComponent(campaignId)}` : ""}`;
+        const response = await apiRequest("GET", verifyUrl);
+        const result = await response.json();
+        const donation = result?.donation;
+
+        if (donation && donation.id) {
+          // navigate to success page showing donation receipt
+          setLocation(`/donation-success/${donation.id}`);
+          return;
+        }
 
         toast({
           title: t("Payment verified"),
@@ -150,7 +167,7 @@ export default function Donate() {
     };
 
     verifyDonation();
-  }, [t, toast]);
+  }, [t, toast, campaignIdFromUrl, setLocation]);
 
   const onSubmit = async (data: DonationForm) => {
     if (!isAuthenticated) {
@@ -170,6 +187,7 @@ export default function Donate() {
         email: data.email || user?.email || "",
         firstName: data.firstName || user?.fullName?.split(" ")[0] || user?.username || "Supporter",
         lastName: data.lastName || user?.fullName?.split(" ").slice(1).join(" ") || "",
+        frontendUrl: window.location.origin,
       };
 
       if (isAuthenticated && user?.id) {
@@ -381,7 +399,7 @@ export default function Donate() {
                 <Heart className="h-5 w-5 mr-2 fill-current" />
                 {(isSubmitting || isVerifying)
                   ? t("Processing...")
-                  : `${t("Complete Donation of") } ${watchedAmount || "0"} ${t("currency.Birr")}`}
+                  : `${t("Complete Donation of") } ${formatLargeNumber(amountValue, t)} ${t("currency.Birr")}`}
               </Button>
             </div>
           </Card>
@@ -413,12 +431,12 @@ export default function Donate() {
             </Card>
 
             <Card className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10">
-              <h3 className="font-semibold mb-2">{t("Your donation can provide")}: {watchedAmount || "0"} {t("currency.Birr")}</h3>
+              <h3 className="font-semibold mb-2">{t("Your donation can provide")}: {formatLargeNumber(amountValue, t)} {t("currency.Birr")}</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>• {Math.floor((parseFloat(watchedAmount || "0") / 0.5))} {t("meals for families in need")}</li>
-                <li>• {Math.floor(parseFloat(watchedAmount || "0") / 5)} {t("sets of school supplies for children")}</li>
-                <li>• {Math.floor(parseFloat(watchedAmount || "0") / 20)} {t("patients with medical care")}</li>
-                <li>• {t("Clean water for")} {Math.floor(parseFloat(watchedAmount || "0") / 2)} {t("people")}</li>
+                <li>• {mealsSupported} {t("meals for families in need")}</li>
+                <li>• {schoolSuppliesSupported} {t("sets of school supplies for children")}</li>
+                <li>• {patientsSupported} {t("patients with medical care")}</li>
+                <li>• {t("Clean water for")} {peopleWithWater} {t("people")}</li>
               </ul>
             </Card>
           </div>

@@ -60,6 +60,7 @@ export interface IStorage {
 
   // Campaigns
   getCampaigns(limit?: number): Promise<Campaign[]>;
+  getAllCampaigns(limit?: number): Promise<Campaign[]>;
   getCampaign(id: string): Promise<Campaign | undefined>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: string, campaign: Partial<InsertCampaign>): Promise<Campaign | undefined>;
@@ -68,6 +69,8 @@ export interface IStorage {
 
   // Donations
   getDonations(limit?: number): Promise<Donation[]>;
+  getDonation(id: string): Promise<Donation | undefined>;
+  getDonationByTransactionId(transactionId: string): Promise<Donation | undefined>;
   getDonationsByCampaign(campaignId: string): Promise<Donation[]>;
   getDonationsByDonor(donorId: string): Promise<Donation[]>;
   createDonation(donation: InsertDonation): Promise<Donation>;
@@ -102,6 +105,7 @@ export class DatabaseStorage implements IStorage {
   private memCampaigns: Map<string, Campaign> = new Map();
   private memStories: Map<string, Story> = new Map();
   private memVolunteers: Map<string, Volunteer> = new Map();
+  private memDonations: Map<string, Donation> = new Map();
 
   constructor() {
     this.seedData();
@@ -167,6 +171,7 @@ export class DatabaseStorage implements IStorage {
       status: "active",
       urgent: true,
       location: "Southern Ethiopia",
+      archived: false,
       createdAt: new Date("2024-01-01"),
     };
     this.memCampaigns.set(campaign1.id, campaign1);
@@ -184,6 +189,7 @@ export class DatabaseStorage implements IStorage {
       status: "active",
       urgent: false,
       location: "Rural Ethiopia",
+      archived: false,
       createdAt: new Date("2024-01-15"),
     };
     this.memCampaigns.set(campaign2.id, campaign2);
@@ -193,12 +199,26 @@ export class DatabaseStorage implements IStorage {
       title: "A Life Saved",
       content: "The medical supplies donated through Welfare saved my son's life. When the hospital ran out of critical medications, these generous donors stepped in. I will be forever grateful.",
       image: "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=800&q=80",
-      author:{"name": "John Smith", "role": "donor", "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=John"},
+      author: { name: "John Smith", role: "donor", avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=John" },
+      authorId: "user-1",
       campaignId: campaign1.id,
       published: true,
       createdAt: new Date("2024-01-20"),
     };
     this.memStories.set(story1.id, story1);
+    // seed a donation example in memory
+    const donation1: Donation = {
+      id: "donation-1",
+      campaignId: campaign1.id,
+      donorId: "user-1",
+      amount: "50",
+      anonymous: false,
+      message: "Keep up the great work",
+      paymentMethod: "manual",
+      transactionId: "tx-donation-1",
+      createdAt: new Date("2024-01-22"),
+    } as Donation;
+    this.memDonations.set(donation1.id, donation1);
   }
 
   private isDbAvailable(): boolean {
@@ -240,7 +260,7 @@ export class DatabaseStorage implements IStorage {
       return result[0];
     }
     return Array.from(this.memUsers.values()).find(
-      (user) => user.verificationToken === token,
+      (user) => (user as any).verificationToken === token,
     );
   }
 
@@ -301,11 +321,24 @@ export class DatabaseStorage implements IStorage {
       return await db
         .select()
         .from(campaigns)
-        .where(eq(campaigns.status, "active"))
+        .where(and(eq(campaigns.status, "active"), eq(campaigns.archived, false)))
         .orderBy(desc(campaigns.createdAt))
         .limit(limit);
     }
-    return Array.from(this.memCampaigns.values()).filter(c => c.status === "active").slice(0, limit);
+    return Array.from(this.memCampaigns.values())
+      .filter(c => c.status === "active" && !c.archived)
+      .slice(0, limit);
+  }
+
+  async getAllCampaigns(limit = 50): Promise<Campaign[]> {
+    if (this.isDbAvailable()) {
+      return await db
+        .select()
+        .from(campaigns)
+        .orderBy(desc(campaigns.createdAt))
+        .limit(limit);
+    }
+    return Array.from(this.memCampaigns.values()).slice(0, limit);
   }
 
   async getCampaign(id: string): Promise<Campaign | undefined> {
@@ -322,7 +355,7 @@ export class DatabaseStorage implements IStorage {
       return result[0];
     }
     const id = randomUUID();
-    const campaign: Campaign = {
+    const campaign = {
       ...insertCampaign,
       id,
       raisedAmount: "0",
@@ -330,8 +363,9 @@ export class DatabaseStorage implements IStorage {
       startDate: insertCampaign.startDate ?? new Date(),
       urgent: insertCampaign.urgent ?? null,
       location: insertCampaign.location ?? null,
-      createdAt: new Date()
-    };
+      archived: false,
+      createdAt: new Date(),
+    } as Campaign;
     this.memCampaigns.set(id, campaign);
     return campaign;
   }
@@ -366,10 +400,27 @@ export class DatabaseStorage implements IStorage {
         .update(campaigns)
         .set({ raisedAmount: sql`${campaigns.raisedAmount} + ${amount}` })
         .where(eq(campaigns.id, id));
+
+      // Check if campaign reached goal and mark completed
+      const updated = await db.select().from(campaigns).where(eq(campaigns.id, id));
+      const campaign = updated[0];
+      if (campaign) {
+        const raised = parseFloat(campaign.raisedAmount ?? "0");
+        const goal = parseFloat(campaign.goalAmount ?? "0");
+        if (goal > 0 && raised >= goal && campaign.status !== "completed") {
+          await db.update(campaigns).set({ status: "completed" }).where(eq(campaigns.id, id));
+        }
+      }
     } else {
       const campaign = this.memCampaigns.get(id);
       if (campaign) {
         campaign.raisedAmount = (parseFloat(campaign.raisedAmount ?? "0") + amount).toString();
+        // Auto-complete in memory storage
+        const raised = parseFloat(campaign.raisedAmount ?? "0");
+        const goal = parseFloat(campaign.goalAmount ?? "0");
+        if (goal > 0 && raised >= goal && campaign.status !== "completed") {
+          campaign.status = "completed";
+        }
         this.memCampaigns.set(id, campaign);
       }
     }
@@ -384,7 +435,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(donations.createdAt))
         .limit(limit);
     }
-    return [];
+    return Array.from(this.memDonations.values()).sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)).slice(0, limit);
   }
 
   async getDonationsByCampaign(campaignId: string): Promise<Donation[]> {
@@ -395,8 +446,9 @@ export class DatabaseStorage implements IStorage {
         .where(eq(donations.campaignId, campaignId))
         .orderBy(desc(donations.createdAt));
     }
-    // In-memory doesn't store donations, return empty array
-    return [];
+    return Array.from(this.memDonations.values())
+      .filter(d => d.campaignId === campaignId)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
   }
 
   async getDonationsByDonor(donorId: string): Promise<Donation[]> {
@@ -407,7 +459,9 @@ export class DatabaseStorage implements IStorage {
         .where(eq(donations.donorId, donorId))
         .orderBy(desc(donations.createdAt));
     }
-    return [];
+    return Array.from(this.memDonations.values())
+      .filter(d => d.donorId === donorId)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
   }
 
   async createDonation(insertDonation: InsertDonation): Promise<Donation> {
@@ -425,7 +479,24 @@ export class DatabaseStorage implements IStorage {
       transactionId: insertDonation.transactionId ?? null,
       createdAt: new Date()
     };
+    this.memDonations.set(donation.id, donation);
     return donation;
+  }
+
+  async getDonation(id: string): Promise<Donation | undefined> {
+    if (this.isDbAvailable()) {
+      const result = await db.select().from(donations).where(eq(donations.id, id));
+      return result[0];
+    }
+    return this.memDonations.get(id);
+  }
+
+  async getDonationByTransactionId(transactionId: string): Promise<Donation | undefined> {
+    if (this.isDbAvailable()) {
+      const result = await db.select().from(donations).where(eq(donations.transactionId, transactionId));
+      return result[0];
+    }
+    return Array.from(this.memDonations.values()).find((donation) => donation.transactionId === transactionId);
   }
 
   async getTotalDonationsByCampaign(campaignId: string): Promise<number> {
@@ -467,14 +538,16 @@ export class DatabaseStorage implements IStorage {
       return result[0];
     }
     const id = randomUUID();
-    const story: Story = { 
-      ...insertStory, 
-      id, 
+    const story = {
+      ...insertStory,
+      id,
       image: insertStory.image ?? null,
       author: (insertStory.author as Story["author"]) ?? null,
+      authorId: typeof insertStory.authorId === "undefined" ? null : insertStory.authorId,
       campaignId: insertStory.campaignId ?? null,
       published: insertStory.published ?? null,
-      createdAt: new Date() };
+      createdAt: new Date(),
+    } as Story;
     this.memStories.set(id, story);
     return story;
   }

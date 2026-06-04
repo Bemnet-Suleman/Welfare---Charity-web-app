@@ -17,8 +17,12 @@
       "src": "api/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "server/**",
-        "excludeFiles": "client/**"
+        "includeFiles": [
+          "server/**",
+          "attached_assets/**",
+          "uploads/**"
+        ],
+        "excludeFiles": ["client/**"]
       }
     }
   ],

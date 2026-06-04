@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Users, TrendingUp, Clock } from "lucide-react";
+import { CheckCircle2, Users, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { apiRequest } from "@/lib/queryClient";
@@ -15,54 +15,86 @@ export default function Transparency() {
   });
 
   const { data: campaigns } = useQuery({
-    queryKey: ["/api/campaigns"],
-    queryFn: () => apiRequest("GET", "/api/campaigns").then((res: Response) => res.json()),
+    queryKey: ["/api/campaigns", "includeArchived"],
+    queryFn: () => apiRequest("GET", "/api/campaigns?includeArchived=true").then((res: Response) => res.json()),
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ["/api/stats"],
+    queryFn: () => apiRequest("GET", "/api/stats").then((res: Response) => res.json()),
   });
 
   const totalRaised = (donations || []).reduce((sum: number, d: any) => sum + Number(d.amount || 0), 0);
-  const totalGoal = (campaigns || []).reduce((sum: number, c: any) => sum + Number(c.goalAmount || 0), 0);
+  const actualRaised = stats?.totalRaised ?? totalRaised;
+  const actualBeneficiaries = stats?.livesImpacted ?? Math.max(0, Math.floor(actualRaised / 10));
+  const activeCampaignCount = (campaigns || []).filter((c: any) => c.status === "active" && !c.archived).length;
+  const totalCampaignCount = (campaigns || []).length;
+  const completedCampaigns = (campaigns || [])
+    .filter((c: any) => {
+      const raised = Number(c.raisedAmount);
+      const goal = Number(c.goalAmount);
+      return c.archived || c.status === 'completed' || (goal > 0 && raised >= goal);
+    })
+    .map((c: any) => {
+      const raised = Number(c.raisedAmount);
+      const goal = Number(c.goalAmount);
+      const completion = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+      return {
+        title: c.title,
+        raised,
+        beneficiaries: Math.max(0, Math.floor(raised / 10)),
+        completion,
+        status: c.archived ? "transparency.archived" : c.status === 'completed' ? "transparency.completed" : "transparency.active",
+      };
+    });
+  const successRate = stats
+    ? Math.round(stats.goalsAchieved)
+    : totalCampaignCount
+    ? Math.round((completedCampaigns.length / totalCampaignCount) * 100)
+    : 0;
 
   const fundAllocation = [
     {
-      category: "Program Services",
+      category: "transparency.programServices",
       percentage: 75,
-      amount: totalRaised * 0.75,
+      amount: actualRaised * 0.75,
       color: "bg-chart-1",
     },
     {
-      category: "Administrative",
+      category: "transparency.administrative",
       percentage: 15,
-      amount: totalRaised * 0.15,
+      amount: actualRaised * 0.15,
       color: "bg-chart-2",
     },
     {
-      category: "Fundraising",
+      category: "transparency.fundraising",
       percentage: 10,
-      amount: totalRaised * 0.1,
+      amount: actualRaised * 0.1,
       color: "bg-chart-3",
     },
   ];
 
   const campaignTitleById = new Map((campaigns || []).map((c: any) => [c.id, c.title]));
-  const recentDonations = (donations || []).slice(0, 5).map((d: any) => ({
-    donor: d.donorId || "Anonymous",
-    amount: Number(d.amount || 0),
-    campaign: campaignTitleById.get(d.campaignId) || "Unknown Campaign",
-    time: d.createdAt ? new Date(d.createdAt).toLocaleString() : "Recently",
-  }));
-
-  const completedCampaigns = (campaigns || [])
-    .filter((c: any) => c.status === 'completed' || Number(c.raisedAmount) >= Number(c.goalAmount))
-    .map((c: any) => ({
-      title: c.title,
-      raised: Number(c.raisedAmount),
-      beneficiaries: Math.max(0, Math.floor(Number(c.raisedAmount) / 10)),
-      completion:
-        Number(c.goalAmount) > 0
-          ? Math.min(100, Math.round((Number(c.raisedAmount) / Number(c.goalAmount)) * 100))
-          : 0,
-      status: "Completed",
-    }));
+  const recentDonations: Array<any> = [];
+  {
+    const arr = (donations || []).slice();
+    arr.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    const top = arr.slice(0, 5);
+    for (const d of top) {
+      recentDonations.push({
+        id: d.id,
+        donor: d.donorName || t("Anonymous"),
+        donorAvatar:
+          d.donorAvatar ||
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+            d.donorName || "donor",
+          )}`,
+        amount: Number(d.amount || 0),
+        campaign: campaignTitleById.get(d.campaignId) || t("transparency.unknownCampaign"),
+        time: d.createdAt ? new Date(d.createdAt).toLocaleString() : t("transparency.recently"),
+      });
+    }
+  }
 
   return (
     <div className="min-h-screen py-12">
@@ -85,7 +117,7 @@ export default function Transparency() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-4 h-4 rounded ${item.color}`} />
-                      <span className="font-medium">{item.category}</span>
+                      <span className="font-medium">{t(item.category)}</span>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold font-['Space_Grotesk']">
@@ -112,13 +144,13 @@ export default function Transparency() {
             <div className="space-y-4">
               {recentDonations.map((donation: any, index: number) => (
                 <div
-                  key={index}
+                  key={donation.id}
                   className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors animate-in fade-in slide-in-from-right-2"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${donation.donor}`} />
-                    <AvatarFallback>{donation.donor[0]}</AvatarFallback>
+                  <Avatar className="h-10 w-10 flex-shrink-0">
+                    <AvatarImage src={donation.donorAvatar} />
+                    <AvatarFallback>{(donation.donor || "").charAt(0).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{donation.donor}</p>
@@ -146,7 +178,7 @@ export default function Transparency() {
                   </div>
               </div>
               <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="metric-total-raised">
-                2.5{t("M")} {t("currency.ETB")}
+                {stats ? `${stats.totalRaised.toLocaleString()} ${t("currency.ETB")}` : `${actualRaised.toLocaleString()} ${t("currency.ETB")}`}
               </p>
               <p className="text-sm text-muted-foreground">{t("transparency.totalRaisedThisYear")}</p>
             </Card>
@@ -158,7 +190,7 @@ export default function Transparency() {
                 </div>
               </div>
               <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="metric-beneficiaries">
-                45,000
+                {actualBeneficiaries.toLocaleString()}
               </p>
               <p className="text-sm text-muted-foreground">{t("transparency.beneficiariesHelped")}</p>
             </Card>
@@ -170,7 +202,7 @@ export default function Transparency() {
                 </div>
               </div>
               <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="metric-campaigns">
-                156
+                {activeCampaignCount}
               </p>
               <p className="text-sm text-muted-foreground">{t("transparency.activeCampaigns")}</p>
             </Card>
@@ -182,7 +214,7 @@ export default function Transparency() {
                 </div>
               </div>
               <p className="text-3xl font-bold font-['Space_Grotesk']" data-testid="metric-success-rate">
-                89%
+                {successRate}%
               </p>
               <p className="text-sm text-muted-foreground">{t("transparency.successRate")}</p>
             </Card>
@@ -203,7 +235,7 @@ export default function Transparency() {
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="text-lg font-semibold">{campaign.title}</h3>
                       <Badge className="bg-secondary text-secondary-foreground">
-                        {campaign.status}
+                        {t(campaign.status)}
                       </Badge>
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">

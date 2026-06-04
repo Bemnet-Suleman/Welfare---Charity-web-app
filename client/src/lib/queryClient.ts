@@ -43,6 +43,12 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+export async function fetchCurrentUser() {
+  const res = await apiRequest("GET", "/api/auth/me");
+  const data = await res.json();
+  return (data as any).user;
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

@@ -8,10 +8,11 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, TrendingUp, Award, Calendar, Users } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { getRoleLabel } from "@/lib/utils";
 
 interface DonationRecord {
@@ -49,6 +50,17 @@ interface Campaign {
   lastUpdate: string;
 }
 
+interface ActiveCampaign {
+  id: string;
+  title: string;
+  description?: string;
+  goalAmount: number;
+  raisedAmount: number;
+  progress: number;
+  userDonated: number;
+  status: string;
+}
+
 export default function DonorProfile() {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -65,10 +77,11 @@ export default function DonorProfile() {
 
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json().then(({ user }: any) => user)),
+    queryFn: fetchCurrentUser,
     retry: 1,
   });
 
+  const [_, setLocation] = useLocation();
   const user = userData as UserProfile | undefined;
   const isAdmin = user?.role === "admin";
   const isOrganizer = user?.role === "organizer";
@@ -107,6 +120,69 @@ export default function DonorProfile() {
 
   const donations = donationsData as DonationRecord[];
 
+  const campaignIds = Array.from(new Set(donations.map((donation) => donation.campaignId))).slice(0, 4);
+  const { data: activeCampaignsData = [], isLoading: activeCampaignsLoading } = useQuery({
+    queryKey: ["active-campaigns", campaignIds],
+    queryFn: async () => {
+      const campaigns: ActiveCampaign[] = [];
+      for (const campaignId of campaignIds) {
+        const response = await apiRequest("GET", `/api/campaigns/${campaignId}`);
+        if (!response.ok) continue;
+        const campaign = await response.json();
+        const donatedByUser = donations
+          .filter((donation) => donation.campaignId === campaignId)
+          .reduce((sum, donation) => sum + Number(donation.amount), 0);
+        const goalAmount = Number(campaign.goalAmount ?? 0);
+        const raisedAmount = Number(campaign.raisedAmount ?? donatedByUser ?? 0);
+        const progress = goalAmount > 0 ? Math.min(100, Math.round((raisedAmount / goalAmount) * 100)) : 0;
+        campaigns.push({
+          id: campaign.id,
+          title: campaign.title || `Campaign ${campaign.id.slice(0, 6)}`,
+          description: campaign.description || "",
+          goalAmount,
+          raisedAmount,
+          progress,
+          userDonated: donatedByUser,
+          status: campaign.status || "active",
+        });
+      }
+      return campaigns;
+    },
+    enabled: campaignIds.length > 0,
+    retry: 1,
+  });
+
+  const campaignMap = new Map(activeCampaignsData.map((campaign) => [campaign.id, campaign]));
+
+  const donationsByCampaign = donations.reduce((memo, donation) => {
+    const current = memo.get(donation.campaignId) ?? 0;
+    memo.set(donation.campaignId, current + Number(donation.amount));
+    return memo;
+  }, new Map<string, number>());
+
+  const totalDonated = donations.reduce((sum, d) => sum + Number(d.amount), 0);
+  const campaignsSupported = new Set(donations.map((d) => d.campaignId)).size;
+  const livesImpacted = Math.round(totalDonated * 0.08);
+  const averageDonation = donations.length ? totalDonated / donations.length : 0;
+  const monthlyDonations = donations.filter((d) => {
+    const date = new Date(d.createdAt);
+    const now = new Date();
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  }).length;
+  const donationHistory: DonationHistoryItem[] = donations
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map((donation) => ({
+      id: donation.id,
+      campaign: campaignMap.get(donation.campaignId)?.title || `Campaign ${donation.campaignId.slice(0, 6)}`,
+      amount: Number(donation.amount),
+      date: new Date(donation.createdAt).toLocaleDateString(),
+      status: donation.status || "completed",
+    })) as DonationHistoryItem[];
+
+  const topCampaigns = activeCampaignsData
+    .sort((a, b) => b.userDonated - a.userDonated)
+    .slice(0, 3);
+
   const { data: volunteerData = [], isLoading: volunteerLoading } = useQuery({
     queryKey: ["volunteers", "me"],
     queryFn: () => apiRequest("GET", "/api/volunteers/me").then((res) => res.json()),
@@ -115,6 +191,7 @@ export default function DonorProfile() {
   });
 
   const isVolunteerUser = Array.isArray(volunteerData) && volunteerData.some((volunteer: any) => volunteer.status === "approved");
+  const volunteerApplications = Array.isArray(volunteerData) ? volunteerData : [];
 
   const profileRoles: string[] = Array.from(
     new Set([
@@ -137,25 +214,6 @@ export default function DonorProfile() {
   const requestsSubmitted = aidRequests.length;
   const approvedRequests = aidRequests.filter((request: any) => request.status === "approved").length;
   const pendingRequests = aidRequests.filter((request: any) => request.status === "pending").length;
-
-  const totalDonated = donations.reduce((sum, d) => sum + Number(d.amount), 0);
-  const campaignsSupported = new Set(donations.map((d) => d.campaignId)).size;
-  const livesImpacted = Math.round(totalDonated * 0.1);
-  const monthlyDonations = donations.filter((d) => {
-    const date = new Date(d.createdAt);
-    const now = new Date();
-    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-  }).length;
-
-  const donationHistory: DonationHistoryItem[] = donations
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .map((donation) => ({
-      id: donation.id,
-      campaign: `Campaign ${donation.campaignId.slice(0, 6)}`,
-      amount: Number(donation.amount),
-      date: new Date(donation.createdAt).toLocaleDateString(),
-      status: donation.status || "completed",
-    })) as DonationHistoryItem[];
 
   const updateProfile = async () => {
     if (!user?.id) return;
@@ -249,7 +307,7 @@ export default function DonorProfile() {
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
             <Avatar className="h-24 w-24">
               <AvatarImage src={user.avatar || "https://api.dicebear.com/7.x/initials/svg?seed=user"} />
-              <AvatarFallback>{(user.fullName || user.username || "U")[0]}</AvatarFallback>
+              <AvatarFallback>{(user.fullName || user.username || "U").charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
 
             <div className="flex-1 text-center md:text-left">
@@ -443,7 +501,7 @@ export default function DonorProfile() {
         )}
 
         <Tabs defaultValue={isBeneficiary ? "requests" : "history"} className="space-y-6">
-          <TabsList className={isBeneficiary ? "grid w-full md:w-auto grid-cols-2" : "grid w-full md:w-auto grid-cols-3"}>
+          <TabsList className={isBeneficiary ? "grid w-full md:w-auto grid-cols-2" : volunteerApplications.length > 0 && isDonor ? "grid w-full md:w-auto grid-cols-4" : "grid w-full md:w-auto grid-cols-3"}>
             {isBeneficiary ? (
               <>
                 <TabsTrigger value="requests" data-testid="tab-aid-requests">{t("donorProfile.aidRequests")}</TabsTrigger>
@@ -453,6 +511,9 @@ export default function DonorProfile() {
               <>
                 <TabsTrigger value="history" data-testid="tab-history">{t("donorProfile.donationHistory")}</TabsTrigger>
                 <TabsTrigger value="campaigns" data-testid="tab-campaigns">{t("donorProfile.activeCampaigns")}</TabsTrigger>
+                {volunteerApplications.length > 0 && (
+                  <TabsTrigger value="volunteer" data-testid="tab-volunteer">{t("Volunteer Applications")}</TabsTrigger>
+                )}
                 <TabsTrigger value="impact" data-testid="tab-impact">{t("donorProfile.myImpact")}</TabsTrigger>
               </>
             )}
@@ -541,26 +602,37 @@ export default function DonorProfile() {
                   <p className="text-muted-foreground">{t("donorProfile.adminCampaignMessage")}</p>
                 ) : !isDonor ? (
                   <p className="text-muted-foreground">{t("donorProfile.organizerCampaignMessage")}</p>
-                ) : activeCampaigns.length === 0 ? (
+                ) : activeCampaignsLoading ? (
+                  <p className="text-muted-foreground">Loading campaigns...</p>
+                ) : activeCampaignsData.length === 0 ? (
                   <p className="text-muted-foreground">{t("donorProfile.noActiveContributions")}</p>
                 ) : (
-                  activeCampaigns.map((campaign) => (
+                  activeCampaignsData.map((campaign) => (
                     <Card key={campaign.id} className="p-6">
                       <div className="space-y-4">
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <h3 className="text-lg font-semibold mb-1">{campaign.title}</h3>
-                            <p className="text-sm text-muted-foreground">{t("donorProfile.lastUpdate")}: {campaign.lastUpdate}</p>
+                            <p className="text-sm text-muted-foreground">{campaign.status === "active" ? "Active now" : campaign.status}</p>
                           </div>
-                          <Button variant="outline" size="sm" data-testid={`button-view-campaign-${campaign.id}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            data-testid={`button-view-campaign-${campaign.id}`}
+                            onClick={() => setLocation(`/campaign/${campaign.id}`)}
+                          >
                             {t("donorProfile.viewCampaign")}
                           </Button>
                         </div>
 
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span className="font-medium">{t("donorProfile.yourContribution")}: {campaign.donated.toLocaleString()} {t("currency.Birr")}</span>
-                            <span className="text-muted-foreground">{t("donorProfile.goal")}: {campaign.goal.toLocaleString()} {t("currency.Birr")}</span>
+                            <span className="font-medium">{t("donorProfile.yourContribution")}: {campaign.userDonated.toLocaleString()} {t("currency.Birr")}</span>
+                            <span className="text-muted-foreground">{t("donorProfile.goal")}: {campaign.goalAmount.toLocaleString()} {t("currency.Birr")}</span>
+                          </div>
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>Raised: {campaign.raisedAmount.toLocaleString()} {t("currency.Birr")}</span>
+                            <span>{campaign.progress}%</span>
                           </div>
                           <Progress value={campaign.progress} className="h-2" />
                           <p className="text-sm text-secondary">{campaign.progress}% {t("donorProfile.funded")}</p>
@@ -571,12 +643,40 @@ export default function DonorProfile() {
                 )}
               </TabsContent>
 
+              {volunteerApplications.length > 0 && (
+                <TabsContent value="volunteer" className="space-y-4">
+                  <Card className="p-6">
+                    <h2 className="text-xl font-semibold mb-4 font-['Poppins']">{t("Volunteer Applications")}</h2>
+                    <div className="space-y-3">
+                      {volunteerApplications.map((volunteer: any) => (
+                        <div key={volunteer.id} className="flex flex-col gap-3 p-4 rounded-lg border hover:bg-muted/50 transition-all">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <p className="font-medium">{volunteer.experience || "Volunteer Application"}</p>
+                              <p className="text-sm text-muted-foreground">{new Date(volunteer.createdAt).toLocaleDateString()}</p>
+                            </div>
+                            <Badge className={volunteer.status === "approved" ? "bg-green-500/10 text-green-700 border-green-200" : volunteer.status === "rejected" ? "bg-red-500/10 text-red-700 border-red-200" : "bg-secondary/10 text-secondary border-secondary/20"}>
+                              {volunteer.status || "pending"}
+                            </Badge>
+                          </div>
+                          {volunteer.availability && <p className="text-sm text-muted-foreground">{volunteer.availability}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </TabsContent>
+              )}
+
               <TabsContent value="impact">
                 <Card className="p-6">
                   <h2 className="text-xl font-semibold mb-6 font-['Poppins']">{t("donorProfile.yourImpactStory")}</h2>
                   <div className="space-y-6">
                     <div className="p-4 bg-muted/50 rounded-lg">
                       <p className="text-muted-foreground">{t("donorProfile.impactThanks")}</p>
+                    </div>
+                    <div className="rounded-lg border border-muted/50 p-4 bg-background/80">
+                      <p className="text-sm text-muted-foreground mb-2">You have supported {campaignsSupported} campaign{campaignsSupported === 1 ? "" : "s"} with {donations.length} donation{donations.length === 1 ? "" : "s"}.</p>
+                      <p className="text-sm text-muted-foreground">Average gift: {averageDonation ? Math.round(averageDonation).toLocaleString() : 0} {t("currency.Birr")}</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -598,7 +698,11 @@ export default function DonorProfile() {
                       </div>
                     </div>
 
-                    <Button className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border" data-testid="button-share-impact">
+                    <Button
+                      className="w-full bg-accent hover:bg-accent text-accent-foreground border border-accent-border"
+                      data-testid="button-share-impact"
+                      onClick={() => setLocation("/stories")}
+                    >
                       <Heart className="h-4 w-4 mr-2 fill-current" /> {t("donorProfile.shareMyImpact")}
                     </Button>
                   </div>

@@ -1,7 +1,7 @@
 import serverless from "serverless-http";
 import { createApp } from "../server/app";
 
-let handler: any;
+let handler: ReturnType<typeof serverless> | null = null;
 
 async function getHandler() {
   if (!handler) {
@@ -11,7 +11,7 @@ async function getHandler() {
   return handler;
 }
 
-export default async function (req: any, res: any) {
+export default async function handler(req: any, res: any) {
   const fn = await getHandler();
   return fn(req, res);
 }

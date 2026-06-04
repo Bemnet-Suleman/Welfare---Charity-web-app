@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   const [selectedUserRole, setSelectedUserRole] = useState<string | null>(null);
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ["auth/me"],
-    queryFn: () => apiRequest("GET", "/api/auth/me").then((res) => res.json()),
+    queryFn: fetchCurrentUser,
   });
 
   const user = authData as User | undefined;
@@ -37,7 +37,8 @@ export default function AdminDashboard() {
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["admin/campaigns"],
-    queryFn: () => apiRequest("GET", "/api/campaigns").then((res) => res.json()),
+    // use the public campaigns endpoint with includeArchived flag to see all campaigns
+    queryFn: () => apiRequest("GET", "/api/campaigns?includeArchived=true").then((res) => res.json()),
     enabled: isAdmin,
   });
 
@@ -64,6 +65,16 @@ export default function AdminDashboard() {
     queryFn: () => apiRequest("GET", "/api/users").then((res) => res.json()),
     enabled: canManageUsers,
   });
+
+  // Map userId -> volunteer status (approved | pending | rejected)
+  const volunteerStatusMap = (volunteers as any[]).reduce((m: Map<string, string>, v: any) => {
+    if (!v.userId) return m;
+    const existing = m.get(v.userId);
+    // Prefer approved over pending, otherwise store first status
+    if (existing === "approved") return m;
+    m.set(v.userId, v.status || "pending");
+    return m;
+  }, new Map<string, string>());
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
@@ -142,6 +153,24 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ["admin/aid-requests"] });
     } catch (error: any) {
       toast({ title: t("Error"), description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleArchiveCampaign = async (campaignId: string, currentArchiveStatus: boolean) => {
+    try {
+      const endpoint = currentArchiveStatus ? `/api/campaigns/${campaignId}/unarchive` : `/api/campaigns/${campaignId}/archive`;
+      await apiRequest("POST", endpoint, {});
+      toast({
+        title: t(currentArchiveStatus ? "Campaign Unarchived" : "Campaign Archived"),
+        description: t(currentArchiveStatus ? "Campaign is now visible again" : "Campaign has been removed from listings"),
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin/campaigns"] });
+    } catch (error: any) {
+      toast({
+        title: t("Error"),
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -229,24 +258,40 @@ export default function AdminDashboard() {
                 <p className="text-muted-foreground text-sm">{t("No campaigns yet")}</p>
               ) : (
                 (campaigns as any[]).map((campaign: any) => (
-                  <div key={campaign.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div key={campaign.id} className="flex items-center justify-between p-3 border rounded-lg" style={{ opacity: campaign.archived ? 0.6 : 1 }}>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{campaign.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">{campaign.title}</p>
+                        {campaign.archived && <Badge variant="secondary" className="text-xs">{t("Archived")}</Badge>}
+                      </div>
                       <p className="text-xs text-muted-foreground capitalize">{campaign.status}</p>
                     </div>
                     <div className="flex gap-2 ml-2">
+                      <Link href={`/edit-campaign/${campaign.id}`}>
+                        <Button size="sm" variant="outline">{t("Edit")}</Button>
+                      </Link>
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => window.location.href = `/edit-campaign/${campaign.id}`}
+                        variant={campaign.archived ? "secondary" : "ghost"}
+                        onClick={() => {
+                          if (campaign.archived) {
+                            if (confirm(`Unarchive "${campaign.title}"?`)) {
+                              handleArchiveCampaign(campaign.id, true);
+                            }
+                          } else {
+                            if (confirm(`Remove "${campaign.title}" from public listings? (Archive)`)) {
+                              handleArchiveCampaign(campaign.id, false);
+                            }
+                          }
+                        }}
                       >
-                        {t("Edit")}
+                        {campaign.archived ? t("Unarchive") : t("Archive")}
                       </Button>
                       <Button
                         size="sm"
                         variant="destructive"
                         onClick={() => {
-                          if (confirm(`Are you sure you want to delete "${campaign.title}"?`)) {
+                          if (confirm(`Are you sure you want to delete "${campaign.title}"? This permanently removes it.`)) {
                             apiRequest("DELETE", `/api/campaigns/${campaign.id}`).then(() => {
                               toast({ title: t("Deleted"), description: t("Campaign deleted successfully") });
                               queryClient.invalidateQueries({ queryKey: ["admin/campaigns"] });
@@ -535,6 +580,7 @@ export default function AdminDashboard() {
                     <tr>
                       <th className="text-left py-2 px-2">{t("Email")}</th>
                       <th className="text-left py-2 px-2">{t("Full Name")}</th>
+                      <th className="text-left py-2 px-2">{t("Volunteer")}</th>
                       <th className="text-left py-2 px-2">{t("Role")}</th>
                       <th className="text-left py-2 px-2">{t("Verified")}</th>
                       <th className="text-left py-2 px-2">{t("Blocked")}</th>
@@ -547,6 +593,15 @@ export default function AdminDashboard() {
                       <tr key={u.id} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-2 text-xs">{u.email}</td>
                         <td className="py-3 px-2">{u.fullName || u.username || "-"}</td>
+                        <td className="py-3 px-2">
+                          {volunteerStatusMap.get(u.id) ? (
+                            <Badge variant={volunteerStatusMap.get(u.id) === "approved" ? "default" : "secondary"}>
+                              {volunteerStatusMap.get(u.id)}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </td>
                         <td className="py-3 px-2">
                           {canChangeRole ? (
                             <Select defaultValue={u.role || "donor"} onValueChange={(value) => handleRoleChange(u.id, value)}>

@@ -43,7 +43,7 @@ export default function Stories() {
     const author = story.author ?? {
       name: "Anonymous",
       role: "Beneficiary",
-      avatar: story.image,
+      avatar: undefined,
     };
 
     return {
@@ -52,7 +52,7 @@ export default function Stories() {
       author: {
         name: author.name || "Anonymous",
         role: author.role || "Beneficiary",
-        avatar: author.avatar || story.image || undefined,
+        avatar: author.avatar || undefined,
       },
       category: story.category || "Impact Story",
       image: story.image,
