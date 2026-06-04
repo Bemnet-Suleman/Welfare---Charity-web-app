@@ -22,7 +22,7 @@ export default function CreateCampaign() {
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("");
   const [duration, setDuration] = useState("");
-  const [location, setLocation] = useState("");
+  const [locationInput, setLocationInput] = useState("");
   const [imageUrl, setImageUrl] = useState(DEFAULT_IMAGE);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState(DEFAULT_IMAGE);
@@ -51,7 +51,7 @@ export default function CreateCampaign() {
       setDescription(campaignData.description || "");
       setGoal(campaignData.goalAmount || "");
       setCategory(campaignData.category || "");
-      setLocation(campaignData.location || "");
+      setLocationInput(campaignData.location || "");
       // Calculate duration from endDate - startDate
       if (campaignData.startDate && campaignData.endDate) {
         const start = new Date(campaignData.startDate);
@@ -72,7 +72,7 @@ export default function CreateCampaign() {
       return;
     }
 
-    if (!title || !description || !goal || !duration || !location || !category) {
+    if (!title || !description || !goal || !duration || !locationInput || !category) {
       alert(t("Please fill all required fields before submitting the campaign."));
       return;
     }
@@ -90,7 +90,7 @@ export default function CreateCampaign() {
       }
       formData.append("goalAmount", goalAmount.toFixed(2));
       formData.append("category", category || "other");
-      formData.append("location", location);
+      formData.append("location", locationInput);
 
       const durationDays = Number(duration);
       if (Number.isNaN(durationDays) || durationDays <= 0) {
@@ -120,7 +120,7 @@ export default function CreateCampaign() {
         setGoal("");
         setDuration("");
         setCategory("");
-        setLocation("");
+        setLocationInput("");
         setImageUrl(DEFAULT_IMAGE);
         setSelectedImageFile(null);
       }
@@ -261,11 +261,11 @@ export default function CreateCampaign() {
             </div>
 
             <div>
-              <Label htmlFor="location" className="text-lg font-semibold">{t("Location")}</Label>
+                <Label htmlFor="location" className="text-lg font-semibold">{t("Location")}</Label>
               <Input
                 id="location"
-                value={location}
-                onChange={(event) => setLocation(event.target.value)}
+                value={locationInput}
+                onChange={(event) => setLocationInput(event.target.value)}
                 placeholder={t("City, Country")}
                 className="mt-2"
                 data-testid="input-location"

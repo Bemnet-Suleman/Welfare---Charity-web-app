@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import session from "express-session";
@@ -32,14 +33,21 @@ export async function createApp(): Promise<Express> {
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
-  fs.mkdirSync(path.join(process.cwd(), "uploads"), { recursive: true });
+  // Use an ephemeral uploads directory when running on serverless platforms (Vercel).
+  // Allow overriding with `UPLOAD_DIR` env var for testing/alternative setups.
+  const DEFAULT_UPLOADS_DIR = path.join(process.cwd(), "uploads");
+  const SERVERLESS_TMP_DIR = path.join(os.tmpdir(), "welfare-uploads");
+  const UPLOADS_DIR = (process.env.UPLOAD_DIR || (process.env.VERCEL ? SERVERLESS_TMP_DIR : DEFAULT_UPLOADS_DIR));
+
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
   app.use("/attached_assets", express.static(path.join(process.cwd(), "attached_assets")));
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+  // Serve uploaded files from the chosen uploads directory (ephemeral on serverless)
+  app.use("/uploads", express.static(UPLOADS_DIR));
 
   const storageConfig = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, path.join(process.cwd(), "uploads"));
+      cb(null, UPLOADS_DIR);
     },
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1_000_000_000);
