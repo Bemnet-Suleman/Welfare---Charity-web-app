@@ -335,39 +335,46 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
 
   // Campaigns
   app.get("/api/campaigns", async (req, res) => {
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-    let campaigns = await storage.getCampaigns(limit);
+  const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+  const includeArchived = req.query.includeArchived === "true";
 
-    const search = (req.query.search as string) || "";
-    const category = (req.query.category as string) || "";
-    const includeArchived = req.query.includeArchived === "true";
+  // FIX: If includeArchived is requested, pull from getAllCampaigns(), otherwise fallback to default getCampaigns()
+  let campaigns;
+  if (includeArchived && typeof storage.getAllCampaigns === "function") {
+    campaigns = await storage.getAllCampaigns(limit);
+  } else {
+    campaigns = await storage.getCampaigns(limit);
+  }
 
-    // Filter out archived campaigns unless explicitly requested (for public view)
-    if (!includeArchived) {
-      campaigns = campaigns.filter(c => !c.archived);
-    }
+  const search = (req.query.search as string) || "";
+  const category = (req.query.category as string) || "";
 
-    if (search) {
-      const lower = search.toLowerCase();
-      campaigns = campaigns.filter(c =>
-        c.title.toLowerCase().includes(lower) ||
-        c.description.toLowerCase().includes(lower)
-      );
-    }
+  // Filter out archived campaigns if it wasn't requested (and if the storage layer didn't already filter them)
+  if (!includeArchived) {
+    campaigns = campaigns.filter(c => !c.archived);
+  }
 
-    if (category && category !== "all") {
-      const lower = category.toLowerCase();
-      campaigns = campaigns.filter(c => c.category.toLowerCase().includes(lower));
-    }
+  if (search) {
+    const lower = search.toLowerCase();
+    campaigns = campaigns.filter(c =>
+      c.title.toLowerCase().includes(lower) ||
+      c.description.toLowerCase().includes(lower)
+    );
+  }
 
-    // ensure we return a stable response shape even if organizer relation was removed
-    const enriched = campaigns.map((c) => ({
-      ...c,
-      organizer: null,
-    }));
+  if (category && category !== "all") {
+    const lower = category.toLowerCase();
+    campaigns = campaigns.filter(c => c.category.toLowerCase().includes(lower));
+  }
 
-    res.json(enriched);
-  });
+  // ensure we return a stable response shape even if organizer relation was removed
+  const enriched = campaigns.map((c) => ({
+    ...c,
+    organizer: null,
+  }));
+
+  res.json(enriched);
+});
 
   app.get("/api/campaigns/:id", async (req, res) => {
     const campaign = await storage.getCampaign(req.params.id);
@@ -379,67 +386,99 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
   });
 
   app.post("/api/campaigns", upload.single("image"), async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-      const currentUser = req.user as unknown as { role?: string };
-      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const campaignData: any = {
-        title: req.body.title,
-        description: req.body.description,
-        image: req.file ? `/uploads/${req.file.filename}` : (req.body.image || "https://images.unsplash.com/photo-1640622656785-4fddbd3b4c6a?w=800&q=80"),
-        category: req.body.category,
-        goalAmount: req.body.goalAmount,
-        startDate: req.body.startDate,
-        endDate: req.body.endDate,
-        status: "active",
-        urgent: false,
-        location: req.body.location || null,
-      };
-
-      const incoming = insertCampaignSchema.parse(campaignData);
-      const campaign = await storage.createCampaign(incoming);
-      res.json(campaign);
-    } catch (error) {
-      console.error("Campaign creation error:", error);
-      console.error("Error details:", error instanceof Error ? error.message : error);
-      console.error("Stack:", error instanceof Error ? error.stack : "No stack");
-      res.status(400).json({ error: "Invalid campaign data", details: error instanceof Error ? error.message : String(error) });
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
     }
-  });
+    const currentUser = req.user as unknown as { role?: string };
+    if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
+    // Explicitly fallback to string paths or default values
+    const imagePath = req.file 
+      ? `/uploads/${req.file.filename}` 
+      : (typeof req.body.image === 'string' ? req.body.image : "https://images.unsplash.com/photo-1640622656785-4fddbd3b4c6a?w=800&q=80");
+
+    // Construct payload ensuring correct primitive types
+    const campaignData = {
+      title: String(req.body.title || "").trim(),
+      description: String(req.body.description || "").trim(),
+      image: imagePath,
+      category: String(req.body.category || "Other").trim(),
+      goalAmount: String(req.body.goalAmount || "0.00"), 
+      startDate: req.body.startDate ? new Date(req.body.startDate) : new Date(),
+      endDate: req.body.endDate ? new Date(req.body.endDate) : new Date(),
+      status: "active",
+      urgent: false,
+      location: req.body.location ? String(req.body.location).trim() : null,
+    };
+
+    // Parse data safely
+    const incoming = insertCampaignSchema.parse(campaignData);
+    const campaign = await storage.createCampaign(incoming);
+    res.json(campaign);
+  } catch (error) {
+    // This will force the exact Zod issue to show up in your console logs
+    console.error("Campaign creation error:", error);
+    if (error && typeof error === 'object' && 'issues' in error) {
+      console.error("Zod Validation Issues:", JSON.stringify((error as any).issues, null, 2));
+    }
+    res.status(400).json({ 
+      error: "Invalid campaign data", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
   app.put("/api/campaigns/:id", upload.single("image"), async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ error: "Not authenticated" });
-      }
-      const currentUser = req.user as unknown as { role?: string };
-      if (!["admin", "system_admin"].includes(currentUser.role || "")) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const campaign = await storage.getCampaign(req.params.id);
-      if (!campaign) {
-        return res.status(404).json({ error: "Campaign not found" });
-      }
-
-      const updateData: Partial<InsertCampaign> = { ...req.body };
-      if (req.file) {
-        updateData.image = `/uploads/${req.file.filename}`;
-      } else if (req.body.image === undefined || req.body.image === "") {
-        delete (updateData as any).image;
-      }
-
-      const updated = await storage.updateCampaign(req.params.id, updateData);
-      res.json(updated);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid campaign data" });
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
     }
-  });
+    const currentUser = req.user as unknown as { role?: string };
+    if (!["admin", "system_admin"].includes(currentUser.role || "")) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const campaign = await storage.getCampaign(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    // Prepare clean data object
+    const updateData: any = {};
+
+    // Only map fields if they exist in the incoming request body
+    if (req.body.title !== undefined) updateData.title = String(req.body.title).trim();
+    if (req.body.description !== undefined) updateData.description = String(req.body.description).trim();
+    if (req.body.category !== undefined) updateData.category = String(req.body.category).trim();
+    if (req.body.goalAmount !== undefined) updateData.goalAmount = String(req.body.goalAmount);
+    if (req.body.location !== undefined) updateData.location = req.body.location ? String(req.body.location).trim() : null;
+
+    // Safely parse incoming date strings into actual Date objects
+    if (req.body.startDate) updateData.startDate = new Date(req.body.startDate);
+    if (req.body.endDate) updateData.endDate = new Date(req.body.endDate);
+
+    // Explicitly handle image updates
+    if (req.file) {
+      updateData.image = `/uploads/${req.file.filename}`;
+    } else if (typeof req.body.image === 'string' && req.body.image.trim() !== "") {
+      updateData.image = req.body.image;
+    }
+
+    const updated = await storage.updateCampaign(req.params.id, updateData);
+    res.json(updated);
+  } catch (error) {
+    console.error("Campaign update error:", error);
+    if (error && typeof error === 'object' && 'issues' in error) {
+      console.error("Zod Validation Issues (PUT):", JSON.stringify((error as any).issues, null, 2));
+    }
+    res.status(400).json({ 
+      error: "Invalid campaign data", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
 
   app.delete("/api/campaigns/:id", async (req, res) => {
     try {
@@ -953,14 +992,50 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
   });
 
   app.get("/api/volunteers", async (req, res) => {
-    const currentUser = req.user as unknown as { role?: string } | undefined;
-    if (!currentUser || !["admin", "system_admin"].includes(currentUser.role || "")) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+  try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+    // Check if the request is coming from the public Volunteer feed
+    const listingsOnly = req.query.listingsOnly === "true";
+    
     const volunteers = await storage.getVolunteers(limit);
-    res.json(volunteers);
-  });
+    
+    const enrichedVolunteers = await Promise.all(
+      volunteers.map(async (v) => {
+        const campaign = v.campaignId ? await storage.getCampaign(v.campaignId) : null;
+        
+        // Determine if this row is an Admin-created opportunity listing
+        let isOpportunityListing = false;
+        if (!v.userId) {
+          isOpportunityListing = true;
+        } else {
+          const user = await storage.getUser(v.userId);
+          if (user && ["admin", "system_admin"].includes(user.role || "")) {
+            isOpportunityListing = true;
+          }
+        }
+
+        return {
+          ...v, // Keeps userId, status, and everything intact for the Admin Dashboard!
+          isListing: isOpportunityListing,
+          campaign: campaign ? { title: campaign.title, category: campaign.category, image: campaign.image, location: campaign.location } : null,
+          campaignTitle: campaign?.title || null,
+          campaignCategory: campaign?.category || "General",
+        };
+      })
+    );
+
+    // If the public feed asked for listings only, filter it here safely
+    if (listingsOnly) {
+      return res.json(enrichedVolunteers.filter(item => item.isListing === true));
+    }
+
+    // Otherwise, return everything unmodified so the Admin Dashboard works perfectly
+    res.json(enrichedVolunteers);
+  } catch (error) {
+    console.error("Error fetching volunteers:", error);
+    res.status(500).json({ error: "Unable to fetch volunteer opportunities" });
+  }
+});
 
   app.put("/api/volunteers/:id/status", async (req, res) => {
     const currentUser = req.user as unknown as { role?: string } | undefined;
@@ -990,16 +1065,51 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     }
   });
 
-  app.post("/api/volunteers", async (req, res) => {
+app.post("/api/volunteers", async (req, res) => {
     try {
-      const volunteerData = insertVolunteerSchema.parse(req.body);
+      const currentUser = req.user as unknown as { id: string; role?: string } | undefined;
+      const payload = { ...req.body };
+
+      // 1. Clean payload fields so Drizzle/Zod does not reject structural variations
+      if (payload.campaignId === null || payload.campaignId === "" || payload.campaignId === undefined) {
+        delete payload.campaignId;
+      }
+
+      // 2. Automate user identity mappings and rules based on roles
+      if (currentUser) {
+        const isAdminUser = ["admin", "system_admin"].includes(currentUser.role || "");
+        
+        if (isAdminUser) {
+          // If the admin is creating an empty opportunity template, assign it to their own ID.
+          // This satisfies the database foreign key and prevents "violates foreign key constraint" crashes!
+          if (!payload.userId || payload.userId === "") {
+            payload.userId = currentUser.id;
+          }
+          payload.status = payload.status || "approved";
+        } else {
+          // Regular users or donors applying to campaigns are forced onto their own ID and marked pending
+          payload.userId = currentUser.id;
+          payload.status = "pending";
+        }
+      } else {
+        // Fallback catch-all if data leaks through unauthenticated pipelines
+        payload.status = "pending";
+        if (payload.userId === null || payload.userId === "" || payload.userId === undefined) {
+          delete payload.userId;
+        }
+      }
+
+      // 3. Test data attributes using your Zod library schema configuration
+      const volunteerData = insertVolunteerSchema.parse(payload);
+      
+      // 4. Save record to local storage engine
       const volunteer = await storage.createVolunteer(volunteerData);
       res.json(volunteer);
     } catch (error) {
-      res.status(400).json({ error: "Invalid volunteer data" });
+      console.error("Volunteer registry submission error:", error);
+      res.status(400).json({ error: "Invalid volunteer data structural specifications" });
     }
   });
-
   app.delete("/api/volunteers/:id", async (req, res) => {
     try {
       const currentUser = req.user as unknown as { role?: string } | undefined;

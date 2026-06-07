@@ -20,6 +20,7 @@ import RequestAid from "@/pages/RequestAid";
 import DonorProfile from "@/pages/DonorProfile";
 import CampaignDetail from "@/pages/CampaignDetail";
 import AdminDashboard from "@/pages/AdminDashboard";
+import CreateVolunteerOpportunity from "@/pages/CreateVolunteerOpportunity"
 import VerifyEmail from "@/pages/VerifyEmail";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
@@ -63,6 +64,7 @@ function Router() {
       <Route path="/campaign/:id" component={CampaignDetail} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/verify-email/:token" component={VerifyEmail} />
+      <Route path="/create-volunteer-opportunity" component={CreateVolunteerOpportunity} />
       <Route component={NotFound} />
     </Switch>
   );

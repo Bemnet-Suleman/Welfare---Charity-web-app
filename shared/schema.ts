@@ -9,7 +9,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
   fullName: text("full_name"),
-  role: text("role").default("donor").notNull(), // donor, volunteer, beneficiary, admin, system_admin
+  role: text("role").default("donor").notNull(), 
   avatar: text("avatar"),
   verified: boolean("verified").default(false),
   blocked: boolean("blocked").default(false),

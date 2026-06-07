@@ -78,7 +78,7 @@ export function StoriesSection() {
     );
   }
 
-  const storyCards = stories?.map(transformStoryToCardProps) || [];
+  const storyCards = stories?.slice(0,3).map(transformStoryToCardProps) || [];
 
   return (
     <section className="py-16 bg-muted/30">

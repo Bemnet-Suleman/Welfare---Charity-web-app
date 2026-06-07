@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Target } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
@@ -17,6 +17,8 @@ export default function CreateCampaign() {
   const { t } = useTranslation();
   const params = useParams();
   const isEditing = !!params.id;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [category, setCategory] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -26,6 +28,7 @@ export default function CreateCampaign() {
   const [imageUrl, setImageUrl] = useState(DEFAULT_IMAGE);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState(DEFAULT_IMAGE);
+  const [originalStartDate, setOriginalStartDate] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: userData, isLoading: userLoading } = useQuery({
@@ -52,7 +55,11 @@ export default function CreateCampaign() {
       setGoal(campaignData.goalAmount || "");
       setCategory(campaignData.category || "");
       setLocationInput(campaignData.location || "");
-      // Calculate duration from endDate - startDate
+      
+      if (campaignData.startDate) {
+        setOriginalStartDate(campaignData.startDate);
+      }
+
       if (campaignData.startDate && campaignData.endDate) {
         const start = new Date(campaignData.startDate);
         const end = new Date(campaignData.endDate);
@@ -60,6 +67,7 @@ export default function CreateCampaign() {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         setDuration(diffDays.toString());
       }
+      
       const existingImage = campaignData.image || DEFAULT_IMAGE;
       setImageUrl(existingImage);
       setPreviewUrl(existingImage);
@@ -97,14 +105,16 @@ export default function CreateCampaign() {
         throw new Error(t("Please provide a valid campaign duration."));
       }
 
-      const startDate = new Date();
-      const endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+      const startDate = isEditing && originalStartDate ? new Date(originalStartDate) : new Date();
+      const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
       formData.append("startDate", startDate.toISOString());
       formData.append("endDate", endDate.toISOString());
 
       if (selectedImageFile) {
         formData.append("image", selectedImageFile);
-      } else if (!isEditing) {
+      } else if (isEditing) {
+        formData.append("image", imageUrl);
+      } else {
         formData.append("image", DEFAULT_IMAGE);
       }
 
@@ -123,6 +133,9 @@ export default function CreateCampaign() {
         setLocationInput("");
         setImageUrl(DEFAULT_IMAGE);
         setSelectedImageFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }
     } catch (err) {
       console.error(err);
@@ -184,7 +197,7 @@ export default function CreateCampaign() {
                   <SelectValue placeholder={t("Select a category")} />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="Education">{t("Education")}</SelectItem>
+                  <SelectItem value="Education">{t("Education")}</SelectItem>
                   <SelectItem value="Healthcare">{t("Healthcare")}</SelectItem>
                   <SelectItem value="Disaster Relief">{t("Disaster Relief")}</SelectItem>
                   <SelectItem value="Food & Nutrition">{t("Food & Nutrition")}</SelectItem>
@@ -245,6 +258,7 @@ export default function CreateCampaign() {
                 accept="image/*"
                 className="mt-2"
                 data-testid="input-image-file"
+                ref={fileInputRef}
                 onChange={(event) => setSelectedImageFile(event.target.files?.[0] ?? null)}
               />
               <p className="text-sm text-muted-foreground mt-2">
@@ -261,7 +275,7 @@ export default function CreateCampaign() {
             </div>
 
             <div>
-                <Label htmlFor="location" className="text-lg font-semibold">{t("Location")}</Label>
+              <Label htmlFor="location" className="text-lg font-semibold">{t("Location")}</Label>
               <Input
                 id="location"
                 value={locationInput}

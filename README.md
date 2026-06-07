@@ -1,418 +1,147 @@
-# ✨ Welfare App - Charity & Welfare Portal
+```text
+# Welfare App - Charity and Welfare Portal
 
-A modern, full-stack charity and welfare platform connecting donors, volunteers, and beneficiaries. Built with React, Express, PostgreSQL, and deployed on Vercel.
+A modern, full-stack charity and welfare platform connecting donors, volunteers, and beneficiaries. Built with React, Express, PostgreSQL, and designed for local/school-network execution.
 
-## 📋 Table of Contents
+Proudly created by OZONE HIGH SCHOOL GRADE 11 A STUDENTS as part of a charity club initiative.
 
+---
+
+### Important Project Status and Deployment Note
+Deployment Roadmap: This platform is currently configured to run locally within the school network. It will be officially deployed online to production once the platform hits Welfare 2.0, which will introduce a fully functional, live production payment processing system alongside the complete implementation of all remaining secondary application features. Until then, it will remain hosted entirely on the school network.
+
+---
+
+## Table of Contents
 - [Features](#features)
 - [Tech Stack](#tech-stack)
-- [Quick Start](#quick-start)
-- [Development](#development)
-- [Production Deployment](#production-deployment)
-- [Project Structure](#project-structure)
+- [Quick Start and Database Setup](#quick-start-and-database-setup)
+- [Pre-seeded Test Accounts](#pre-seeded-test-accounts)
+- [Project Documentation Links](#project-documentation-links)
 - [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## 🌟 Features
-
-- 💝 **Donation System** – Secure and transparent contributions
-- 👥 **Volunteer Management** – Sign-up and scheduling for events
-- 📊 **Impact Dashboard** – Track funds, projects, and beneficiaries
-- 📢 **Campaigns & Events** – Share causes and upcoming charity drives
-- 🔒 **Authentication** – Secure login with session management
-- 🌍 **Multi-language Support** – i18n ready
-- 🎨 **Modern UI** – Beautiful, responsive Tailwind CSS design
-- 📱 **Mobile Responsive** – Works on all devices
+## Features
+- Donation System - Secure, transparent simulated contribution logging.
+- Volunteer Management - Match applications to open opportunities seamlessly.
+- Impact and Transparency Dashboard - Live filtering for fully funded campaigns (including archived entries).
+- Authentication and Authorization - Role-separated user flows with secure local session tracking.
+- Multi-language Support - Integrated frontend localization setups (i18n).
 
 ---
 
-## 🛠️ Tech Stack
-
-### Frontend
-- **React 18** – UI framework
-- **TypeScript** – Type safety
-- **Vite** – Fast build tool
-- **TailwindCSS** – Styling
-- **React Query** – Data fetching & caching
-- **React Hook Form** – Form management
-- **Shadcn/ui** – Component library
-
-### Backend
-- **Node.js** – Runtime
-- **Express** – Web framework
-- **TypeScript** – Type safety
-- **PostgreSQL** – Database
-- **Drizzle ORM** – Database ORM
-- **Passport.js** – Authentication
-- **Express Session** – Session management
-
-### Deployment
-- **Vercel** – Hosting (serverless functions for API)
-- **Supabase / Neon** – Managed PostgreSQL
-- **GitHub** – Version control
+## Tech Stack
+* Frontend: React 18, TypeScript, Vite, TailwindCSS, React Query, Shadcn/ui
+* Backend: Node.js, Express, TypeScript, Passport.js
+* Database: PostgreSQL, Drizzle ORM
 
 ---
 
-## 🚀 Quick Start
+## Quick Start and Database Setup
 
-### Option 1: Local Development (Recommended)
+Follow these steps to spin up the local application environment inside the school network.
 
-#### Prerequisites
-- Node.js 18+
-- PostgreSQL installed locally
-
-#### Setup
-
+### Clone and Install Dependencies
 ```bash
-# 1. Clone repository
-git clone https://github.com/your-username/Welfare---Charity-web-app.git
+git clone [https://github.com/Bemnet-Suleman/Welfare---Charity-web-app.git](https://github.com/Bemnet-Suleman/Welfare---Charity-web-app.git)
 cd Welfare---Charity-web-app
-
-# 2. Install dependencies
 npm install
 
-# 3. Create local environment file
+```
+
+### Configure Your Environment File
+
+Create your local environment properties file from the provided example template:
+
+```bash
 cp .env.local.example .env.local
-# Edit .env.local with your local database credentials
 
-# 4. Create local database
-createdb welfare_dev
+```
 
-# 5. Run database migrations
+Open .env.local and configure your database target variables. The standard default local configuration setup uses the postgres user with postgres.com at port 5432 or default local parameters matching:
+
+```env
+LOCAL_DATABASE_URL=postgresql://postgres:postgres.com@localhost:5432/WELFARE
+SESSION_SECRET=super-random-32-character-string-for-security
+
+```
+
+### Initialize and Seed Sample Database Data
+
+An explicit database backup scheme containing all core metrics, layout configurations, and pre-seeded mock records is provided at the root folder path inside welfare_eg_db_backup.sql. Access the local PostgreSQL instance to provision the empty database and restore the structured layout schema with all pre-seeded records from the backup file:
+
+```bash
+psql -U postgres -c "CREATE DATABASE \"WELFARE\";"
+psql -U postgres -d WELFARE -f welfare_eg_db_backup.sql
+
+```
+
+Alternatively, push raw schemas or reset structural layouts via ORM commands if needed:
+
+```bash
 npm run db:push
 
-# 6. Start development server (runs both backend + frontend)
-npm run dev
 ```
 
-The app will be available at:
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:5000/api
-
-### Option 2: Production on Vercel
+### Run the Platform Locally
 
 ```bash
-# 1. Push to GitHub
-git push origin main
-
-# 2. Connect to Vercel
-# - Go to vercel.com
-# - Import your GitHub repository
-# - Add environment variables (DATABASE_URL, SESSION_SECRET)
-# - Deploy
-
-# 3. Vercel will automatically build and deploy
-```
-
----
-
-## 📖 Development
-
-### Development Scripts
-
-```bash
-# Run both backend and frontend
 npm run dev
 
-# Run backend only (port 5000)
-npm run dev:server
-
-# Run frontend only (port 5173)
-npm run dev:client
-
-# Build for production
-npm run build
-
-# Type checking
-npm run check
-
-# Database commands
-npm run db:push    # Apply migrations
-npm run db:init    # Initialize schema
 ```
 
-### Project Structure
-
-```
-Welfare---Charity-web-app/
-├── api/                    # Vercel serverless functions
-│   └── index.ts           # API gateway for serverless
-├── client/                # React frontend
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── pages/         # Route pages
-│   │   ├── components/    # Reusable components
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── lib/           # Utilities & API client
-│   │   └── main.tsx
-│   └── index.html
-├── server/                # Express backend
-│   ├── app.ts            # Express app setup
-│   ├── index.ts          # Server entry point
-│   ├── routes.ts         # API routes
-│   ├── storage.ts        # Database layer
-│   └── vite.ts           # Vite dev config
-├── migrations/            # Database migrations
-├── shared/               # Shared types/schemas
-│   └── schema.ts         # Zod schemas
-├── vite.config.ts        # Vite configuration
-├── vercel.json           # Vercel build config
-├── .env.example          # Environment template
-├── DEPLOYMENT.md         # Detailed deployment guide
-└── README.md             # This file
-```
-
-### Environment Variables
-
-#### Local Development (`.env.local`)
-```env
-LOCAL_DATABASE_URL=postgresql://postgres:password@localhost:5432/welfare_dev
-SESSION_SECRET=your-local-secret-here
-PORT=5000
-NODE_ENV=development
-```
-
-#### Production (Vercel Environment Variables)
-```env
-DATABASE_URL=postgresql://user:password@host:5432/database?sslmode=require
-SESSION_SECRET=your-production-secret-here
-NODE_ENV=production
-```
-
-**Important**: Never commit `.env.local` to Git!
+* Frontend Application Client URL: http://localhost:5173
+* Backend Platform API Target Engine: http://localhost:5000/api
 
 ---
 
-## 🌐 Production Deployment
+## Pre-seeded Test Accounts
 
-### Using Vercel (Recommended)
+The layout backup file handles database seeding automatically. Use these built-in mock accounts to test user-facing authorization flows:
 
-1. **Push code to GitHub**
-   ```bash
-   git add .
-   git commit -m "Ready for deployment"
-   git push origin main
-   ```
+| Role | Email Address | Password | Clearances and Notes |
+| --- | --- | --- | --- |
+| System Admin | sysadmin@example.com | SysAdmin@123 | Top clearance level. Admin management dashboard visibility and can reassign user access roles plus performs all actions available to the charity admin. |
+| Charity Admin | null@gmail.com | 1qaz2wsx | Standard management dashboard permissions. Approves campaigns, processes incoming applications. |
+| Donor Account A | exampleDonor@gmail.com | qawsedrf | Standard donation platform privileges. |
+| Donor Account B | henok_2@yahoo.com | qawsedrf | Standard donation platform privileges. |
+| Donor Account C | mehanayim@gmail.com | qawsedrf | Standard donation platform privileges. |
+| Donor Account D | teketelewbelete99@gmail.com | qawsedrf | Standard donation platform privileges. |
+| Beneficiary | exampleBeneficiary@gmail.com | qawsedrf | Core assistance profiles access. |
 
-2. **Connect to Vercel**
-   - Go to https://vercel.com
-   - Click "New Project"
-   - Import your GitHub repository
-   - Configure build settings (defaults work fine)
+Note: These are purely mock test accounts created strictly for verifying regional offline development metrics. Additional user structures can be explored straight through the built-in system administrator views. These accounts are entirely fictional test parameters.
 
-3. **Add Environment Variables**
-   - In Vercel Dashboard → Settings → Environment Variables
-   - Add `DATABASE_URL` (from Supabase/Neon)
-   - Add `SESSION_SECRET` (strong random string)
+---
 
-4. **Deploy**
-   - Vercel automatically deploys on push to main
-   - Check deployment status in Vercel Dashboard
+## Project Documentation Links
 
-### Database Setup for Production
+Our technical deep-dives are organized across dedicated tracking documents:
 
-#### Using Supabase (Recommended)
-1. Go to https://supabase.com
-2. Create a new project
-3. Get PostgreSQL connection string from Settings
-4. Set as `DATABASE_URL` in Vercel
+* [Deployment Blueprint](DEPLOYMENT.md) - Comprehensive step-by-step instructions for production environments.
+* [System Architecture Guide](ARCHITECTURE.md) - Structural tracking across backend routes, API proxies, and UI layers.
+* [Codebase Technical Overview](PROJECT_DOCUMENTATION.md) - Exhaustive file breakdown and active relational schemas maps.
+* [Design Layout System](design_guidelines.md) - Color styling parameters, font metrics, and component rules.
 
-#### Using Neon
-1. Go to https://neon.tech
-2. Create PostgreSQL database
-3. Copy connection string
-4. Set as `DATABASE_URL` in Vercel
+---
 
-### Testing Production Build Locally
+## Contributing
 
-```bash
-# Build for production
-npm run build
+We welcome contributions to help drive features forward toward our Welfare 2.0 milestone:
 
-# Preview the production build
-npm run start
+* Fork the codebase repository.
+* Branch your custom additions using git checkout -b feature/your-feature-name
+* Commit localized implementation fixes using git commit -m "Add: feature description"
+* Push your branch upstream using git push origin feature/your-feature-name
+* Open a pull request for revision.
+
+---
+
+## License
+
+This project is licensed under the MIT License. Dedicated entirely to supporting the growth and operational milestones of the OZONE Charity Club initiative.
+
 ```
 
----
-
-## 🔑 Key Features Explained
-
-### Authentication
-- Passport.js for local strategy (email/password)
-- Express sessions stored in PostgreSQL
-- Automatic session handling
-
-### API Routes
-All API endpoints are prefixed with `/api`:
-- `/api/campaigns` – Campaign management
-- `/api/donations` – Donation tracking
-- `/api/volunteers` – Volunteer management
-- `/api/stories` – Charity stories
-- `/api/auth` – Authentication endpoints
-
-### Database
-- PostgreSQL with Drizzle ORM
-- Type-safe schema definitions
-- Automatic migrations with Drizzle Kit
-- Session storage in database
-
-### File Uploads
-- Multipart form data handling with Multer
-- Files stored locally (`/uploads` directory)
-- Public assets in `/attached_assets`
-
----
-
-## 🐛 Troubleshooting
-
-### Database Connection Error
 ```
-Error: connect ECONNREFUSED 127.0.0.1:5432
-```
-**Solution**: Ensure PostgreSQL is running
-```bash
-# macOS
-brew services start postgresql
-
-# Linux
-sudo systemctl start postgresql
-
-# Windows
-psql -U postgres
-```
-
-### Port Already in Use
-```bash
-# Kill process on port 5000 (backend)
-lsof -ti:5000 | xargs kill -9
-
-# Or on Windows:
-netstat -ano | findstr :5000
-taskkill /PID <PID> /F
-```
-
-### Vite Dev Server Issues
-```bash
-# Clear node modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
-npm run dev
-```
-
-### Build Errors on Vercel
-1. Check Vercel build logs
-2. Run build locally: `npm run build`
-3. Ensure all environment variables are set
-4. Check for hardcoded local paths
-
----
-
-## 📚 Additional Resources
-
-- [Deployment Guide](./DEPLOYMENT.md) – Detailed deployment instructions
-- [Design Guidelines](./design_guidelines.md) – UI/UX standards
-- [Project Documentation](./PROJECT_DOCUMENTATION.md) – Full technical docs
-
----
-
-## 🤝 Contributing
-
-1. **Fork the repository**
-   ```bash
-   git clone https://github.com/your-username/Welfare---Charity-web-app.git
-   cd Welfare---Charity-web-app
-   ```
-
-2. **Create a feature branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-3. **Install dependencies and setup**
-   ```bash
-   npm install
-   cp .env.local.example .env.local
-   # Configure .env.local
-   npm run db:push
-   npm run dev
-   ```
-
-4. **Make your changes**
-   - Follow existing code style
-   - Add tests if applicable
-   - Update documentation
-
-5. **Commit and push**
-   ```bash
-   git add .
-   git commit -m "Add: your feature description"
-   git push origin feature/your-feature-name
-   ```
-
-6. **Open a Pull Request**
-   - Describe your changes
-   - Reference any related issues
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-## 💬 Support
-
-For questions or issues:
-- Create an issue on GitHub
-- Check existing issues and discussions
-- Review [Troubleshooting](#troubleshooting) section
-
----
-
-**Built with ❤️ for the charity community**
-Clone the repo:
-
-bash
-git clone https://github.com/your-username/Welfare---Charity-web-app.git
-Navigate to the project:
-
-bash
-cd Welfare---Charity-web-app
-Install dependencies:
-
-bash
-npm install
-Prepare environment variables:
-
-bash
-cp .env.example .env
-
-Then edit `.env` with your local or live database connection.
-
-Run locally:
-
-bash
-npm run dev
-
-Environment variables
-- `LOCAL_DATABASE_URL` — local Postgres connection string for development
-- `DATABASE_URL` — live database URL (Supabase, Neon, or another Postgres-hosted database)
-- `SESSION_SECRET` — secret string for session encryption
-- `CHAPA_SECRET_KEY` — optional payment provider key
-- `PORT` — optional server port (default `5000`)
-
-🤝 Contributing
-We welcome contributions!
-
-Fork the repo
-
-Create a feature branch
-
-Submit a pull request
-
-🌍 Vision
-This project is built to empower communities through transparency, accessibility, and collective action. Together, we can make welfare initiatives more impactful and inclusive.
-
-💡 Dedicated to the Charity Club — a platform built exclusively to support its mission and values.

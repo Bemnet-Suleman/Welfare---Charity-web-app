@@ -753,10 +753,9 @@ export class DatabaseStorage implements IStorage {
         ? (achievedRes[0]?.count / countRes[0].count) * 100
         : 0;
 
-      // for now, livesImpacted mirrors totalRaised or could use custom logic
       return {
         totalRaised,
-        livesImpacted: totalRaised,
+        livesImpacted: totalRaised/150,
         activeVolunteers,
         goalsAchieved,
       };

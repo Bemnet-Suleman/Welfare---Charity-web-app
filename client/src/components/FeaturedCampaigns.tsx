@@ -94,7 +94,7 @@ export function FeaturedCampaigns() {
     );
   }
 
-  const campaignCards = campaigns?.map(transformCampaignToCardProps) || [];
+ const campaignCards = campaigns?.slice(0, 3).map(transformCampaignToCardProps) || [];
 
   return (
     <section id="campaigns" className="py-16">

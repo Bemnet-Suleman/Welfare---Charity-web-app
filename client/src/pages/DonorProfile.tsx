@@ -203,8 +203,6 @@ export default function DonorProfile() {
   const isVolunteer = isVolunteerUser || user?.role === "volunteer";
   const roleDescription = isAdmin
     ? t("donorProfile.adminDescription")
-    : isOrganizer
-    ? t("donorProfile.organizerDescription")
     : isBeneficiary
     ? t("donorProfile.beneficiaryDescription")
     : isVolunteer

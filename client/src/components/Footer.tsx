@@ -30,19 +30,19 @@ export function Footer() {
             <p className="text-sm text-muted-foreground mb-4">
               {t("Give with clarity. Help with confidence. Making charitable giving transparent and impactful.")}
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-2"><a href="https://facebook.com" target="_blank">
               <Button size="icon" variant="ghost" data-testid="link-facebook">
                 <Facebook className="h-4 w-4" />
-              </Button>
+              </Button></a><a href="https://twitter.com" target="_blank">
               <Button size="icon" variant="ghost" data-testid="link-twitter">
                 <Twitter className="h-4 w-4" />
-              </Button>
+              </Button></a><a href="https://instagram.com" target="_blank">
               <Button size="icon" variant="ghost" data-testid="link-instagram">
                 <Instagram className="h-4 w-4" />
-              </Button>
+              </Button></a><a href="https://linkedin.com" target="_blank">
               <Button size="icon" variant="ghost" data-testid="link-linkedin">
                 <Linkedin className="h-4 w-4" />
-              </Button>
+              </Button></a>
             </div>
           </div>
 

@@ -25,6 +25,10 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedUserRole, setSelectedUserRole] = useState<string | null>(null);
+  
+  // Adds a state tab so approved or rejected logs stay reviewable instead of vanishing
+  const [volunteerSectionFilter, setVolunteerSectionFilter] = useState<string>("pending");
+
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ["auth/me"],
     queryFn: fetchCurrentUser,
@@ -37,7 +41,6 @@ export default function AdminDashboard() {
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["admin/campaigns"],
-    // use the public campaigns endpoint with includeArchived flag to see all campaigns
     queryFn: () => apiRequest("GET", "/api/campaigns?includeArchived=true").then((res) => res.json()),
     enabled: isAdmin,
   });
@@ -60,6 +63,12 @@ export default function AdminDashboard() {
     enabled: isAdmin,
   });
 
+  const { data: volunteerOpportunities = [] } = useQuery({
+    queryKey: ["admin/volunteer-opportunities"],
+    queryFn: () => apiRequest("GET", "/api/volunteer-opportunities").then((res) => res.json()),
+    enabled: isAdmin,
+  });
+
   const { data: users = [] } = useQuery({
     queryKey: ["admin/users"],
     queryFn: () => apiRequest("GET", "/api/users").then((res) => res.json()),
@@ -70,11 +79,34 @@ export default function AdminDashboard() {
   const volunteerStatusMap = (volunteers as any[]).reduce((m: Map<string, string>, v: any) => {
     if (!v.userId) return m;
     const existing = m.get(v.userId);
-    // Prefer approved over pending, otherwise store first status
     if (existing === "approved") return m;
     m.set(v.userId, v.status || "pending");
     return m;
   }, new Map<string, string>());
+
+  const { data: volunteerPostings = [], isLoading: loadingPostings } = useQuery({
+    queryKey: ["/api/admin-opportunities"],
+    queryFn: () => apiRequest("GET", "/api/volunteers?limit=100").then((res) => res.json()),
+    enabled: !!isAdmin,
+  });
+
+
+
+
+  const usersMap = new Map<string, User>((users as User[]).map((u) => [u.id, u]));
+  
+  const opportunitiesMap = new Map<string, any>();
+  (volunteerPostings as any[]).forEach((op) => {
+    if (op.id) opportunitiesMap.set(op.id, op);
+    if (op.campaignId) opportunitiesMap.set(op.campaignId, op);
+  });
+
+  const openOpportunities = volunteerPostings.filter((v: any) => {
+    const creator = usersMap.get(v.userId);
+    return v.status === "approved" && (creator?.role === "admin" || creator?.role === "system_admin");
+  });
+ 
+
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
@@ -83,7 +115,6 @@ export default function AdminDashboard() {
         title: t("Role Updated"),
         description: `User role changed to ${newRole}`,
       });
-      // Invalidate query to refresh user list
       queryClient.invalidateQueries({ queryKey: ["admin/users"] });
     } catch (error: any) {
       toast({
@@ -183,6 +214,19 @@ export default function AdminDashboard() {
     {} as Record<string, number>,
   );
 
+
+  const processedVolunteerApplications = (volunteers as any[]).filter((v: any) => {
+    const applicant = usersMap.get(v.userId);
+    const isApplicantAdmin = applicant?.role === "admin" || applicant?.role === "system_admin";
+
+    return v.userId && !isApplicantAdmin;
+  });
+ 
+  const displayedApplications = processedVolunteerApplications.filter((v: any) => {
+    const status = v.status || "pending";
+    return status.toLowerCase() === volunteerSectionFilter.toLowerCase();
+  });
+
   if (authLoading) {
     return <div className="min-h-screen py-24 text-center">{t("Loading admin dashboard...")}</div>;
   }
@@ -213,11 +257,13 @@ export default function AdminDashboard() {
     <div className="min-h-screen py-12">
       <div className="max-w-6xl mx-auto px-4">
         <div className="mb-10">
-            <h1 className="text-4xl md:text-5xl font-bold mb-3 font-['Poppins']">{user?.role === "system_admin" ? "System Administration" : "Charity Admin Control Center"}</h1>
-            <p className="text-lg text-muted-foreground max-w-3xl">
-              {user?.role === "system_admin"
-                ? "Manage users, roles, campaigns, stories, volunteer support, beneficiary requests and system settings."
-                : "Manage campaigns, stories, volunteer support, beneficiary requests and user accounts from a secure admin dashboard."}
+          <h1 className="text-4xl md:text-5xl font-bold mb-3 font-['Poppins']">
+            {user?.role === "system_admin" ? "System Administration" : "Charity Admin Control Center"}
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-3xl">
+            {user?.role === "system_admin"
+              ? "Manage users, roles, campaigns, stories, volunteer support, beneficiary requests and system settings."
+              : "Manage campaigns, stories, volunteer support, beneficiary requests and user accounts from a secure admin dashboard."}
           </p>
         </div>
 
@@ -235,12 +281,13 @@ export default function AdminDashboard() {
             <p className="text-3xl font-bold">{(aidRequests as any[]).length}</p>
           </Card>
           <Card className="p-6">
-            <p className="text-sm text-muted-foreground">{t("Volunteers")}</p>
-            <p className="text-3xl font-bold">{(volunteers as any[]).length}</p>
+            <p className="text-sm text-muted-foreground">{t("Active Positions")}</p>
+             <p className="text-3xl font-bold">{openOpportunities.length}</p>
           </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+          {/* Campaigns Card */}
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-3">{t("Campaigns")}</h2>
             <p className="text-sm text-muted-foreground mb-5">
@@ -310,15 +357,18 @@ export default function AdminDashboard() {
             </div>
           </Card>
 
+          {/* Stories Card */}
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-3">{t("Stories")}</h2>
-            <p className="text-sm text-muted-foreground mb-5">
-              {t("Create, edit and publish impact stories from donors, volunteers, and beneficiaries.")}
-            </p>
-            <div className="flex flex-col gap-3 mb-4">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold font-['Poppins']">{t("Stories")}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {t("Create, edit and publish impact stories from donors, volunteers, and beneficiaries.")}
+                </p>
+              </div>
               <Link href="/create-story">
-                <Button asChild className="w-full">
-                  <a>{t("Create New Story")}</a>
+                <Button size="sm" className="bg-primary hover:bg-primary/90">
+                  {t("Create Story")}
                 </Button>
               </Link>
             </div>
@@ -367,106 +417,57 @@ export default function AdminDashboard() {
             </div>
           </Card>
 
+          {/* Volunteer Opportunities / Placement Management Card */}
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-3">{t("Aid Requests")}</h2>
-            <p className="text-sm text-muted-foreground mb-5">
-              {t("Review and manage aid requests from beneficiaries.")}
-            </p>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {(aidRequests as any[]).length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t("No aid requests yet")}</p>
-              ) : (
-                (aidRequests as any[]).slice(0, 5).map((request: any) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{request.title}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{request.status}</p>
-                    </div>
-                    <Badge variant={request.status === "pending" ? "secondary" : request.status === "approved" ? "default" : "outline"}>
-                      {request.status}
-                    </Badge>
-                  </div>
-                ))
-              )}
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold font-['Poppins']">{t("Active Volunteer Postings")}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {t("Track timeline configurations, required baseline skills, and statement outlines.")}
+                </p>
+              </div>
+              <Link href="/create-volunteer-opportunity">
+                <Button size="sm" className="bg-primary hover:bg-primary/90">
+                  {t("Create Opportunity")}
+                </Button>
+              </Link>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">{t("Use the detailed list below to manage requests")}</p>
-          </Card>
-        </div>
-
-        <div className="mt-8">
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">{t("Pending Volunteer Approvals")}</h2>
-            {(volunteers as any[]).filter((v: any) => v.status === "pending").length === 0 ? (
-              <p className="text-muted-foreground">{t("No pending volunteer applications")}</p>
-            ) : (
-              <div className="space-y-3">
-                {(volunteers as any[]).filter((v: any) => v.status === "pending").map((volunteer: any) => (
-                  <div key={volunteer.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{volunteer.experience || "Volunteer Application"}</p>
-                      <p className="text-xs text-muted-foreground">{volunteer.availability || "Availability not specified"}</p>
-                      <p className="text-xs text-muted-foreground mt-1">ID: {volunteer.id}</p>
+            {loadingPostings ? (
+              <div className="text-center py-8 text-muted-foreground animate-pulse">
+                {t("Fetching active positions records...")}
+              </div>
+            ) : openOpportunities.length > 0 ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                {openOpportunities.map((op: any) => (
+                  <div 
+                    key={op.id} 
+                    className="p-4 border rounded-xl bg-card hover:shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground line-clamp-2">{op.experience}</p>
+                      <p className="text-xs text-muted-foreground font-semibold">⏰ {op.availability || t("Flexible Commitments")}</p>
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {Array.isArray(op.skills) && op.skills.map((skill: string, idx: number) => (
+                          <Badge key={idx} variant="secondary" className="text-xs bg-secondary/10 border-secondary/20 text-secondary font-normal">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex gap-2 ml-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 justify-end shrink-0">
                       <Button
+                        variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          apiRequest("PUT", `/api/volunteers/${volunteer.id}/status`, { status: "approved" }).then(() => {
-                            toast({
-                              title: t("Approved"),
-                              description: t("Volunteer has been approved"),
-                            });
-                            queryClient.invalidateQueries({ queryKey: ["admin/volunteers"] });
-                          }).catch((error) => {
-                            toast({
-                              title: t("Error"),
-                              description: error.message,
-                              variant: "destructive",
-                            });
-                          });
-                        }}
-                      >
-                        {t("Approve")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          apiRequest("PUT", `/api/volunteers/${volunteer.id}/status`, { status: "rejected" }).then(() => {
-                            toast({
-                              title: t("Rejected"),
-                              description: t("Volunteer application has been rejected"),
-                            });
-                            queryClient.invalidateQueries({ queryKey: ["admin/volunteers"] });
-                          }).catch((error) => {
-                            toast({
-                              title: t("Error"),
-                              description: error.message,
-                              variant: "destructive",
-                            });
-                          });
-                        }}
-                      >
-                        {t("Reject")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          if (confirm(t("Are you sure you want to delete this volunteer application?"))) {
-                            apiRequest("DELETE", `/api/volunteers/${volunteer.id}`).then(() => {
-                              toast({
-                                title: t("Deleted"),
-                                description: t("Volunteer application has been deleted"),
-                              });
-                              queryClient.invalidateQueries({ queryKey: ["admin/volunteers"] });
-                            }).catch((error) => {
-                              toast({
-                                title: t("Error"),
-                                description: error.message,
-                                variant: "destructive",
-                              });
-                            });
+                        className="text-destructive hover:bg-destructive/10 h-9 px-3"
+                        onClick={async () => {
+                          if (confirm(t("Are you sure you want to delete this listing?"))) {
+                            try {
+                              await apiRequest("DELETE", `/api/volunteers/${op.id}`);
+                              queryClient.invalidateQueries({ queryKey: ["/api/admin-opportunities"] });
+                              toast({ title: t("Opportunity Slot Deleted") });
+                            } catch (err) {
+                              toast({ title: t("Failed to clear element"), variant: "destructive" });
+                            }
                           }
                         }}
                       >
@@ -475,6 +476,167 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 border border-dashed rounded-2xl text-muted-foreground bg-muted/5">
+                {t("No customized opportunity configurations found. Launch one using the button above.")}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Re-engineered Applications Section with Profile Lookup and Status Tabs */}
+        <div className="mt-8">
+          <Card className="p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-xl font-semibold">{t("Volunteer Application Records")}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("Review volunteer intent profiles, availability schedules, and direct contact details.")}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{t("Status Group:")}</span>
+                <Select value={volunteerSectionFilter} onValueChange={setVolunteerSectionFilter}>
+                  <SelectTrigger className="w-36 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">{t("Pending Only")}</SelectItem>
+                    <SelectItem value="approved">{t("Approved Longlist")}</SelectItem>
+                    <SelectItem value="rejected">{t("Archived Rejections")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {displayedApplications.length === 0 ? (
+              <div className="text-center py-10 border border-dashed rounded-xl text-muted-foreground text-sm bg-muted/5">
+                {t("No applications found marked as ")} <span className="font-semibold underline capitalize">{volunteerSectionFilter}</span>.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {displayedApplications.map((volunteer: any) => {
+                  const profileInfo = usersMap.get(volunteer.userId);
+                  
+                  const targetId = volunteer.campaignId || volunteer.opportunityId || volunteer.id;
+                  const opportunityInfo = opportunitiesMap.get(targetId);
+                  
+                  return (
+                    <div key={volunteer.id} className="p-4 border rounded-xl hover:shadow-sm bg-card transition flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0 space-y-3">
+            
+            {/* Profile Info Lookup Container */}
+            <div className="bg-muted/60 p-3 rounded-lg border border-border/80 max-w-xl">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{t("Applicant Account Profiles")}</p>
+              <p className="text-sm font-semibold text-foreground">
+                👤 {profileInfo?.fullName || profileInfo?.username || t("Anonymous Volunteer")}
+              </p>
+              <p className="text-xs text-muted-foreground font-medium pl-4 mt-0.5">
+                {profileInfo?.email || t("No contact email assigned")}
+              </p>
+            </div>
+
+            {/* Position Info Lookup Container */}
+            <div className="bg-primary/5 p-3 rounded-lg border border-primary/10 max-w-xl">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1">{t("Applied For Position")}</p>
+              <p className="text-sm font-semibold text-foreground">
+                 {opportunityInfo?.title || opportunityInfo?.experience || t("General / Unspecified Assignment")}
+              </p>
+              <p className="text-[11px] text-muted-foreground pl-4 mt-0.5">
+                ID Link: {volunteer.campaignId || t("N/A")}
+              </p>
+            </div>
+
+            {/* Experience and Availability statements */}
+            <div className="space-y-1">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("Intent Statement / Experience")}</p>
+              <p className="font-normal text-sm text-foreground bg-background/50 p-2.5 rounded border border-dashed italic">
+                "{volunteer.experience || t("No intent summary provided.")}"
+              </p>
+              <p className="text-xs text-muted-foreground font-semibold pt-1">
+                {t("Stated Availability Details:")} <span className="font-normal text-foreground">{volunteer.availability || t("Flexible Commitments")}</span>
+              </p>
+            </div>
+                        <div className="flex flex-wrap gap-1.5 items-center pt-1">
+                          <Badge variant="outline" className="text-[10px] px-2 py-0 font-normal">
+                            ID: {volunteer.id}
+                          </Badge>
+                          <Badge 
+                            variant={volunteer.status === "approved" ? "default" : volunteer.status === "rejected" ? "destructive" : "secondary"}
+                            className="text-[10px] px-2 py-0 capitalize font-medium"
+                          >
+                            {volunteer.status || "pending"}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 md:self-center justify-end shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-border/40">
+                        {volunteer.status !== "approved" && (
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={() => {
+                              apiRequest("PUT", `/api/volunteers/${volunteer.id}/status`, { status: "approved" }).then(() => {
+                                toast({
+                                  title: t("Approved Successfully"),
+                                  description: t("Volunteer role status updated to approved."),
+                                });
+                                queryClient.invalidateQueries({ queryKey: ["admin/volunteers"] });
+                              }).catch((error) => {
+                                toast({ title: t("Error"), description: error.message, variant: "destructive" });
+                              });
+                            }}
+                          >
+                            {t("Approve")}
+                          </Button>
+                        )}
+                        
+                        {volunteer.status !== "rejected" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs text-amber-600 border-amber-200 hover:bg-amber-50"
+                            onClick={() => {
+                              apiRequest("PUT", `/api/volunteers/${volunteer.id}/status`, { status: "rejected" }).then(() => {
+                                toast({
+                                  title: t("Application Rejected"),
+                                  description: t("Application shifted to rejection archives tab."),
+                                });
+                                queryClient.invalidateQueries({ queryKey: ["admin/volunteers"] });
+                              }).catch((error) => {
+                                toast({ title: t("Error"), description: error.message, variant: "destructive" });
+                              });
+                            }}
+                          >
+                            {t("Reject")}
+                          </Button>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            if (confirm(t("Are you sure you want to delete this volunteer application permanently?"))) {
+                              apiRequest("DELETE", `/api/volunteers/${volunteer.id}`).then(() => {
+                                toast({
+                                  title: t("Deleted"),
+                                  description: t("Volunteer application log has been removed from database."),
+                                });
+                                queryClient.invalidateQueries({ queryKey: ["admin/volunteers"] });
+                              }).catch((error) => {
+                                toast({ title: t("Error"), description: error.message, variant: "destructive" });
+                              });
+                            }
+                          }}
+                        >
+                          {t("Delete")}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -605,17 +767,16 @@ export default function AdminDashboard() {
                         <td className="py-3 px-2">
                           {canChangeRole ? (
                             <Select defaultValue={u.role || "donor"} onValueChange={(value) => handleRoleChange(u.id, value)}>
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="donor">{t("Donor")}</SelectItem>
-                              <SelectItem value="volunteer">{t("Volunteer")}</SelectItem>
-                              <SelectItem value="beneficiary">{t("Beneficiary")}</SelectItem>
-                              <SelectItem value="admin">{t("Admin")}</SelectItem>
-                              <SelectItem value="system_admin">{t("System Admin")}</SelectItem>
-                            </SelectContent>
-                          </Select>
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="donor">{t("Donor")}</SelectItem>
+                                <SelectItem value="beneficiary">{t("Beneficiary")}</SelectItem>
+                                <SelectItem value="admin">{t("Admin")}</SelectItem>
+                                <SelectItem value="system_admin">{t("System Admin")}</SelectItem>
+                              </SelectContent>
+                            </Select>
                           ) : (
                             <span className="capitalize">{u.role || t("donor")}</span>
                           )}
@@ -660,6 +821,7 @@ export default function AdminDashboard() {
             </Card>
           </div>
         )}
+        
       </div>
     </div>
   );
