@@ -1,4 +1,3 @@
-```text
 # Welfare App - Charity and Welfare Portal
 
 A modern, full-stack charity and welfare platform connecting donors, volunteers, and beneficiaries. Built with React, Express, PostgreSQL, and designed for local/school-network execution.
@@ -141,7 +140,3 @@ We welcome contributions to help drive features forward toward our Welfare 2.0 m
 ## License
 
 This project is licensed under the MIT License. Dedicated entirely to supporting the growth and operational milestones of the OZONE Charity Club initiative.
-
-```
-
-```
