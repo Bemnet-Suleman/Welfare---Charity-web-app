@@ -1,17 +1,17 @@
 import serverless from "serverless-http";
 import { createApp } from "../server/app";
 
-let handler: ReturnType<typeof serverless> | null = null;
+let cachedHandler: ReturnType<typeof serverless> | null = null;
 
 async function getHandler() {
-  if (!handler) {
+  if (!cachedHandler) {
     const app = await createApp();
-    handler = serverless(app);
+    cachedHandler = serverless(app);
   }
-  return handler;
+  return cachedHandler;
 }
 
-export default async function handler(req: any, res: any) {
+export default async function main(req: any, res: any) {
   const fn = await getHandler();
   return fn(req, res);
 }
