@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig({
+  root: "client",
   plugins: [
     react(),
     ...(process.env.REPL_ID !== undefined
@@ -24,7 +25,7 @@ export default defineConfig({
       : []),
   ],
   build: {
-    outDir: "dist/public",
+    outDir: "../dist/public",
   },
   server: {
     proxy: {
