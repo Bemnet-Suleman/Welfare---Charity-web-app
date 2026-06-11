@@ -5,8 +5,7 @@
   "framework": null,
   "functions": {
     "api/index.ts": {
-      "runtime": "nodejs18.x",
-      "includeFiles": "server/**"
+      "runtime": "@vercel/node@5.8.17"
     }
   },
   "rewrites": [
