@@ -35,7 +35,10 @@ if (process.env.NODE_ENV === "production") {
 process.env.DATABASE_URL = cleanedDatabaseUrl;
 
 export async function createApp(): Promise<Express> {
+  console.log("[App] createApp called");
+  
   const app = express();
+  console.log("[App] Express instance created");
 
   app.use(
     cors({
@@ -43,9 +46,11 @@ export async function createApp(): Promise<Express> {
       credentials: true,
     }),
   );
+  console.log("[App] CORS configured");
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
+  console.log("[App] JSON/URL parsers configured");
 
   // Use an ephemeral uploads directory when running on serverless platforms (Vercel).
   // Allow overriding with `UPLOAD_DIR` env var for testing/alternative setups.
@@ -172,7 +177,14 @@ export async function createApp(): Promise<Express> {
     next();
   });
 
-  await registerRoutes(app, upload);
+  console.log("[App] About to register routes...");
+  try {
+    await registerRoutes(app, upload);
+    console.log("[App] Routes registered successfully");
+  } catch (err) {
+    console.error("[App] Error registering routes:", err);
+    throw err;
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -180,5 +192,6 @@ export async function createApp(): Promise<Express> {
     res.status(status).json({ message });
   });
 
+  console.log("[App] App creation complete");
   return app;
 }
