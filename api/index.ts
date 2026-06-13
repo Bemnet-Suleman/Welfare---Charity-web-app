@@ -1,5 +1,5 @@
 import serverless from "serverless-http";
-import { createApp } from "./server/app";
+import { createApp } from "./standalone";
 
 let cachedHandler: ReturnType<typeof serverless> | null = null;
 
