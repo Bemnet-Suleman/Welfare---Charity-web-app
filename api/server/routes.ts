@@ -2,7 +2,7 @@ import type { Express } from "express";
 import passport from "passport";
 import { randomUUID } from "crypto";
 import { storage } from "./storage";
-import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema, type InsertCampaign, type InsertStory } from "../shared/schema";
+import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema, type InsertCampaign, type InsertStory } from "../../shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import multer from "multer";

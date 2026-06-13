@@ -20,7 +20,7 @@ import {
   stories,
   volunteers,
   aidRequests,
-} from "../shared/schema";
+} from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 
 // Database connection - using postgres-js for local PostgreSQL
