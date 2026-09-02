@@ -16,6 +16,7 @@ export async function apiRequest(
   const isFormData = data instanceof FormData;
   const res = await fetch(url, {
     method,
+    cache: "no-store",
     headers: isFormData ? options?.headers : (data ? { "Content-Type": "application/json", ...options?.headers } : options?.headers),
     body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
     credentials: "include",
@@ -32,6 +33,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const res = await fetch(queryKey.join("/") as string, {
+      cache: "no-store",
       credentials: "include",
     });
 

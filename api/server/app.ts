@@ -19,6 +19,7 @@ export async function createApp(): Promise<Express> {
   console.log("[App] createApp called");
   
   const app = express();
+  app.disable("etag");
   console.log("[App] Express instance created");
 
   app.use(
@@ -32,6 +33,11 @@ export async function createApp(): Promise<Express> {
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
   console.log("[App] JSON/URL parsers configured");
+
+  app.use("/api", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
 
   // Use an ephemeral uploads directory when running on serverless platforms (Vercel).
   // Allow overriding with `UPLOAD_DIR` env var for testing/alternative setups.

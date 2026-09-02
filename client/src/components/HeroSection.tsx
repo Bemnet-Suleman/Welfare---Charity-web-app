@@ -34,7 +34,7 @@ export function HeroSection() {
 
   useEffect(() => {
     // fetch actual stats from API
-    fetch("/api/stats")
+    fetch("/api/stats", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         setStats({
