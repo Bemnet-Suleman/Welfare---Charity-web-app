@@ -7,7 +7,6 @@ import cors from "cors";
 import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import ConnectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import { registerRoutes } from "./routes";
@@ -15,24 +14,6 @@ import { storage } from "./storage";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
-
-const DEFAULT_DB_URL = "postgresql://postgres:postgres.com@localhost:5432/WELFARE";
-const rawDatabaseUrl = process.env.DATABASE_URL || process.env.LOCAL_DATABASE_URL || DEFAULT_DB_URL;
-const cleanedDatabaseUrl = rawDatabaseUrl.replace(/"/g, "").trim();
-if (process.env.NODE_ENV === "production") {
-  const containsPlaceholder = /\[your-password\]|your-?password/i.test(cleanedDatabaseUrl);
-  if (containsPlaceholder) {
-    console.error(
-      "Invalid DATABASE_URL detected: it contains a placeholder password. Update your Vercel DATABASE_URL environment variable with the real Supabase connection string.",
-    );
-  }
-  if (cleanedDatabaseUrl === DEFAULT_DB_URL) {
-    console.error(
-      "DATABASE_URL is not configured for production. Set the Vercel DATABASE_URL to your Supabase Postgres connection string.",
-    );
-  }
-}
-process.env.DATABASE_URL = cleanedDatabaseUrl;
 
 export async function createApp(): Promise<Express> {
   console.log("[App] createApp called");
@@ -75,23 +56,8 @@ export async function createApp(): Promise<Express> {
   });
 
   const upload = multer({ storage: storageConfig });
-  const PgSession = ConnectPgSimple(session);
-
-  let sessionStore: any;
-  try {
-    sessionStore = new PgSession({
-      conString: process.env.DATABASE_URL,
-      createTableIfMissing: true,
-    });
-    console.log("Using PostgreSQL session store");
-  } catch (err) {
-    console.warn("Failed to create PostgreSQL session store, using memory store:", err);
-    sessionStore = new session.MemoryStore();
-  }
-
   app.use(
     session({
-      store: sessionStore,
       secret: process.env.SESSION_SECRET || "welfare-secret",
       resave: false,
       saveUninitialized: false,

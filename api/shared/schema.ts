@@ -1,165 +1,21 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").notNull().unique(),
-  fullName: text("full_name"),
-  role: text("role").default("donor").notNull(), 
-  avatar: text("avatar"),
-  verified: boolean("verified").default(false),
-  blocked: boolean("blocked").default(false),
-  verificationToken: text("verification_token"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export type User = { id: string; username: string; password: string; email: string; fullName: string | null; role: string; avatar: string | null; verified: boolean | null; blocked: boolean | null; verificationToken: string | null; createdAt: Date | null };
+export type Campaign = { id: string; title: string; description: string; image: string; category: string; goalAmount: string; raisedAmount: string | null; startDate: Date | null; endDate: Date; status: string; urgent: boolean | null; location: string | null; archived: boolean | null; createdAt: Date | null };
+export type Donation = { id: string; campaignId: string; donorId: string | null; amount: string; anonymous: boolean | null; message: string | null; paymentMethod: string; transactionId: string | null; createdAt: Date | null };
+export type Story = { id: string; title: string; content: string; image: string | null; author: { name: string; role: string; avatar?: string } | null; authorId: string | null; campaignId: string | null; published: boolean | null; createdAt: Date | null };
+export type Volunteer = { id: string; userId: string | null; campaignId: string | null; skills: string[] | null; availability: string | null; experience: string | null; status: string; createdAt: Date | null };
+export type AidRequest = { id: string; userId: string; title: string; description: string; category: string; urgency: string; status: string; documents: string[] | null; location: string | null; createdAt: Date | null; updatedAt: Date | null };
+export type InsertUser = { username: string; password: string; email: string; fullName?: string | null; role?: string; avatar?: string | null };
+export type InsertCampaign = { title: string; description: string; image: string; category: string; goalAmount: string; startDate?: Date | null; endDate: Date; status?: string; urgent?: boolean | null; location?: string | null; archived?: boolean | null };
+export type InsertDonation = { campaignId: string; donorId?: string | null; amount: string; anonymous?: boolean; message?: string | null; paymentMethod: string; transactionId?: string | null };
+export type InsertStory = { title: string; content: string; image?: string | null; author?: Story["author"]; authorId?: string | null; campaignId?: string | null; published?: boolean };
+export type InsertVolunteer = { userId?: string | null; campaignId?: string | null; skills?: string[] | null; availability?: string | null; experience?: string | null; status?: string };
+export type InsertAidRequest = Omit<AidRequest, "id" | "createdAt" | "updatedAt" | "status">;
 
-export const campaigns = pgTable("campaigns", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  image: text("image").notNull(),
-  category: text("category").notNull(),
-  goalAmount: decimal("goal_amount", { precision: 10, scale: 2 }).notNull(),
-  raisedAmount: decimal("raised_amount", { precision: 10, scale: 2 }).default("0"),
-  startDate: timestamp("start_date").defaultNow(),
-  endDate: timestamp("end_date").notNull(),
-  status: text("status").default("active").notNull(), // active, completed, paused, emergency
-  urgent: boolean("urgent").default(false),
-  location: text("location"),
-  archived: boolean("archived").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const donations = pgTable("donations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  campaignId: varchar("campaign_id").references(() => campaigns.id).notNull(),
-  donorId: varchar("donor_id").references(() => users.id),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  anonymous: boolean("anonymous").default(false),
-  message: text("message"),
-  paymentMethod: text("payment_method").notNull(),
-  transactionId: text("transaction_id"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-const authorSchema = z.object({
-  name: z.string(),
-  role: z.string(),
-  avatar: z.string().optional(),
-});
-export const stories = pgTable("stories", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  image: text("image"),
-  author: jsonb("author").$type<z.infer<typeof authorSchema>>(),
-  authorId: varchar("author_id").references(() => users.id),
-  campaignId: varchar("campaign_id").references(() => campaigns.id),
-  published: boolean("published").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const volunteers = pgTable("volunteers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
-  campaignId: varchar("campaign_id").references(() => campaigns.id),
-  skills: jsonb("skills").$type<string[]>(),
-  availability: text("availability"),
-  experience: text("experience"),
-  status: text("status").default("pending").notNull(), // pending, approved, rejected
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const aidRequests = pgTable("aid_requests", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  category: text("category").notNull(),
-  urgency: text("urgency").default("medium").notNull(), // low, medium, high, emergency
-  status: text("status").default("pending").notNull(), // pending, under_review, approved, rejected, fulfilled
-  documents: jsonb("documents").$type<string[]>(), // array of document URLs
-  location: text("location"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Insert schemas
-export const insertUserSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
-  email: z.string().email("Invalid email address"),
-  fullName: z.string().optional().nullable().default(""),
-  role: z.string().optional().default("donor"),
-  avatar: z.string().optional().nullable().default(null),
-});
-
-export const insertCampaignSchema = createInsertSchema(campaigns).omit({
-  id: true,
-  raisedAmount: true,
-  createdAt: true,
-});
-
-export const insertDonationSchema = createInsertSchema(donations).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertStorySchema = createInsertSchema(stories).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertVolunteerSchema = createInsertSchema(volunteers).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertAidRequestSchema = createInsertSchema(aidRequests)
-  .omit({
-    id: true,
-    createdAt: true,
-    updatedAt: true,
-    status: true, // status is server-managed, always defaults to "pending"
-  })
-  .extend({
-    userId: z.string().min(1, "User ID is required"),
-    title: z.string().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
-    description: z.string().min(10, "Description must be at least 10 characters").max(5000, "Description must be less than 5000 characters"),
-    category: z.string().refine(
-      (val) => ["medical", "education", "food", "shelter", "emergency", "other"].includes(val),
-      "Invalid aid category"
-    ),
-    urgency: z.string()
-      .refine(
-        (val) => ["low", "medium", "high", "emergency"].includes(val),
-        "Invalid urgency level"
-      )
-      .default("medium"),
-    location: z.string()
-      .min(1, "Location is required")
-      .max(255, "Location must be less than 255 characters"),
-    documents: z.array(z.string()).optional().default([]),
-  });
-
-// Types
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-
-export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
-export type Campaign = typeof campaigns.$inferSelect;
-
-export type InsertDonation = z.infer<typeof insertDonationSchema>;
-export type Donation = typeof donations.$inferSelect;
-
-export type InsertStory = z.infer<typeof insertStorySchema>;
-export type Story = typeof stories.$inferSelect;
-
-export type InsertVolunteer = z.infer<typeof insertVolunteerSchema>;
-export type Volunteer = typeof volunteers.$inferSelect;
-
-export type InsertAidRequest = z.infer<typeof insertAidRequestSchema>;
-export type AidRequest = typeof aidRequests.$inferSelect;
+export const insertUserSchema = z.object({ username: z.string().min(1), password: z.string().min(1), email: z.string().email(), fullName: z.string().optional().nullable().default(""), role: z.string().optional().default("donor"), avatar: z.string().optional().nullable().default(null) });
+export const insertCampaignSchema = z.object({ title: z.string(), description: z.string(), image: z.string(), category: z.string(), goalAmount: z.coerce.string(), startDate: z.coerce.date().optional(), endDate: z.coerce.date(), status: z.string().optional(), urgent: z.boolean().optional(), location: z.string().nullable().optional(), archived: z.boolean().optional() });
+export const insertDonationSchema = z.object({ campaignId: z.string(), donorId: z.string().nullable().optional(), amount: z.coerce.string(), anonymous: z.boolean().optional(), message: z.string().nullable().optional(), paymentMethod: z.string(), transactionId: z.string().nullable().optional() });
+export const insertStorySchema = z.object({ title: z.string(), content: z.string(), image: z.string().nullable().optional(), author: z.object({ name: z.string(), role: z.string(), avatar: z.string().optional() }).nullable().optional(), authorId: z.string().nullable().optional(), campaignId: z.string().nullable().optional(), published: z.boolean().optional() });
+export const insertVolunteerSchema = z.object({ userId: z.string().nullable().optional(), campaignId: z.string().nullable().optional(), skills: z.array(z.string()).nullable().optional(), availability: z.string().nullable().optional(), experience: z.string().nullable().optional(), status: z.string().optional() });
+export const insertAidRequestSchema = z.object({ userId: z.string().min(1), title: z.string().min(1).max(255), description: z.string().min(10).max(5000), category: z.enum(["medical", "education", "food", "shelter", "emergency", "other"]), urgency: z.enum(["low", "medium", "high", "emergency"]).default("medium"), location: z.string().min(1).max(255), documents: z.array(z.string()).optional().default([]) });
