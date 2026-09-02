@@ -5,7 +5,7 @@
   "license": "MIT",
 "scripts": {
   "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-  "dev:server": "tsx api/server/index.ts",
+  "dev:server": "tsx server/index.ts",
   "dev:client": "vite --port 5173 --host",
   "build": "vite build",
   "check": "tsc"

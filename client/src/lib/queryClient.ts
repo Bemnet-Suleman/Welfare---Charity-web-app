@@ -32,7 +32,13 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const queryPath = queryKey.join("/") as string;
+    const url = queryPath.startsWith("/")
+      ? queryPath
+      : queryPath.startsWith("api/")
+      ? `/${queryPath}`
+      : `/api/${queryPath}`;
+    const res = await fetch(url, {
       cache: "no-store",
       credentials: "include",
     });

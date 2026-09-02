@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import passport from "passport";
 import { randomUUID } from "crypto";
 import { storage } from "./storage";
 import { insertUserSchema, insertCampaignSchema, insertDonationSchema, insertStorySchema, insertVolunteerSchema, insertAidRequestSchema, type InsertCampaign, type InsertStory } from "../shared/schema";
@@ -7,6 +6,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import { sendVerificationEmail, sendResendVerificationEmail } from "./email";
+import { clearAuthCookie, setAuthCookie } from "./session";
 
 type PendingDonation = {
   campaignId: string;
@@ -24,30 +24,18 @@ const pendingDonations: Record<string, PendingDonation> = {};
 
 export async function registerRoutes(app: Express, upload: any): Promise<void> {
   // Auth routes
-  app.post("/api/auth/login", (req, res, next) => {
-    passport.authenticate("local", (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ error: "Authentication error" });
-      }
-      if (!user) {
-        return res.status(401).json({ error: info.message });
-      }
-      req.logIn(user, (err) => {
-        if (err) {
-          return res.status(500).json({ error: "Login error" });
-        }
-        res.json({ user });
-      });
-    })(req, res, next);
+  app.post("/api/auth/login", async (req, res) => {
+    const user = await storage.getUserByEmail(String(req.body.email || ""));
+    if (!user || user.blocked || !(await bcrypt.compare(String(req.body.password || ""), user.password))) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+    setAuthCookie(res, user.id);
+    return res.json({ user });
   });
 
   app.post("/api/auth/logout", (req, res) => {
-    req.logout((err) => {
-      if (err) {
-        return res.status(500).json({ error: "Logout error" });
-      }
-      res.json({ message: "Logged out" });
-    });
+    clearAuthCookie(res);
+    res.json({ message: "Logged out" });
   });
 
   app.get("/api/auth/me", async (req, res) => {
@@ -168,8 +156,7 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
           return res.redirect(`${frontendBase}/donation-success/${existing.id}`);
         }
 
-        const session = req.session as any;
-        const pending = session?.pendingDonations?.[txRef] || pendingDonations[txRef] || null;
+        const pending = pendingDonations[txRef] || null;
         const amount = pending?.amount ?? String(verifyData?.data?.amount ?? "0");
         const resolvedCampaignId = pending?.campaignId || campaignId;
         if (!resolvedCampaignId) {
@@ -187,7 +174,6 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
         });
 
         await storage.updateCampaignRaisedAmount(resolvedCampaignId, parseFloat(amount));
-        if (session?.pendingDonations) delete session.pendingDonations[txRef];
         delete pendingDonations[txRef];
 
         return res.redirect(`${frontendBase}/donation-success/${donation.id}`);
@@ -634,22 +620,6 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
 
       console.log("Chapa init rawFrontendUrl", rawFrontendUrl, "callback_url", callbackUrl, "return_url", returnUrl);
 
-      const session = req.session as any;
-      if (session) {
-        session.pendingDonations = session.pendingDonations || {};
-        session.pendingDonations[txRef] = {
-          campaignId,
-          amount: String(amount),
-          donorId: donorId ?? null,
-          anonymous: Boolean(anonymous),
-          message: "",
-          donationType: donationType || "one-time",
-          email,
-          firstName: firstName || "",
-          lastName: lastName || "",
-        };
-      }
-
       pendingDonations[txRef] = {
         campaignId,
         amount: String(amount),
@@ -714,9 +684,8 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
         return res.status(400).json({ error: message });
       }
 
-      const session = req.session as any;
       const campaignId = String(req.query.campaignId || "");
-      const pendingDonation = session?.pendingDonations?.[txRef] || pendingDonations[txRef];
+      const pendingDonation = pendingDonations[txRef];
       const donationSource = pendingDonation ?? null;
 
       const amount = donationSource?.amount ?? String(verifyData?.data?.amount ?? "0");
@@ -746,9 +715,6 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
 
       await storage.updateCampaignRaisedAmount(resolvedCampaignId, parseFloat(amount));
       
-      if (session?.pendingDonations) {
-        delete session.pendingDonations[txRef];
-      }
       delete pendingDonations[txRef];
 
       res.json({ success: true, donation });

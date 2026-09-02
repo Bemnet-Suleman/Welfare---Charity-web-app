@@ -4,13 +4,10 @@ import path from "path";
 import os from "os";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
-import session from "express-session";
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
-import bcrypt from "bcryptjs";
 import multer from "multer";
 import { registerRoutes } from "./routes";
 import { storage } from "./storage";
+import { getAuthUserId } from "./session";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
@@ -62,64 +59,11 @@ export async function createApp(): Promise<Express> {
   });
 
   const upload = multer({ storage: storageConfig });
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "welfare-secret",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        sameSite: "lax",
-        secure: false,
-        maxAge: 24 * 60 * 60 * 1000,
-      },
-    }),
-  );
-
-  passport.use(
-    new LocalStrategy(
-      {
-        usernameField: "email",
-      },
-      async (email, password, done) => {
-        try {
-          const user = await storage.getUserByEmail(email);
-          if (!user) {
-            return done(null, false, { message: "Invalid email or password" });
-          }
-
-          const isBlocked = (user as any).blocked || false;
-          if (isBlocked) {
-            return done(null, false, { message: "This account has been blocked" });
-          }
-
-          const isValidPassword = await bcrypt.compare(password, user.password);
-          if (!isValidPassword) {
-            return done(null, false, { message: "Invalid email or password" });
-          }
-
-          return done(null, user);
-        } catch (error) {
-          return done(error as Error);
-        }
-      },
-    ),
-  );
-
-  passport.serializeUser((user: any, done) => {
-    done(null, user.id);
+  app.use(async (req, _res, next) => {
+    const userId = getAuthUserId(req);
+    if (userId) req.user = await storage.getUser(userId);
+    next();
   });
-
-  passport.deserializeUser(async (id: string, done) => {
-    try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (error) {
-      done(error as Error);
-    }
-  });
-
-  app.use(passport.initialize());
-  app.use(passport.session());
 
   app.use((req, res, next) => {
     const start = Date.now();
