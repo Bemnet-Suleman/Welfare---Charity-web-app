@@ -8,7 +8,7 @@
   "dev:server": "tsx server/index.ts",
   "dev:client": "vite --port 5173 --host",
   "build": "vite build",
-  "build:api": "esbuild serverless-entry.ts --bundle --platform=node --format=esm --packages=external --outfile=api/index.js",
+  "build:api": "esbuild serverless-entry.ts --bundle --platform=node --format=esm --packages=external --outfile=api/[...path].js",
   "check": "tsc"
 }
 ,

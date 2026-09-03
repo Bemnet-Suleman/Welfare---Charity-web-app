@@ -108,6 +108,10 @@ export async function createApp(): Promise<Express> {
     res.status(status).json({ message });
   });
 
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "API route not found" });
+  });
+
   console.log("[App] App creation complete");
   return app;
 }
