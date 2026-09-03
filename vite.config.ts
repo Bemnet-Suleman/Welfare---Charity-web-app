@@ -28,21 +28,24 @@ export default defineConfig({
     outDir: "../dist/public",
   },
   server: {
-    proxy: {
-      "/api": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-        ws: true,
-      },
-      "/attached_assets": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-      },
-      "/uploads": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
-      },
-    },
+    port: Number(process.env.PORT) || 5173,
+    proxy: process.env.VERCEL
+      ? undefined
+      : {
+          "/api": {
+            target: "http://localhost:5000",
+            changeOrigin: true,
+            ws: true,
+          },
+          "/attached_assets": {
+            target: "http://localhost:5000",
+            changeOrigin: true,
+          },
+          "/uploads": {
+            target: "http://localhost:5000",
+            changeOrigin: true,
+          },
+        },
     fs: {
       strict: true,
       deny: ["**/.*"],
