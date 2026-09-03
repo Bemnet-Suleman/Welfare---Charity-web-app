@@ -1726,11 +1726,30 @@ function getApp() {
 }
 
 export default async function handler(req: any, res: any) {
-	try {
-		const app = await getApp();
-		return app(req, res);
-	} catch (error) {
-		console.error("API request failed", error);
-		return res.status(500).json({ error: "Internal server error" });
-	}
+    try {
+        // Ensure req.query exists
+        req.query = req.query || {};
+
+        // If Vercel already provided path as array/string, normalize it
+        let segments = req.query.path ?? req.query['path'];
+        if (typeof segments === 'string') {
+            segments = segments.split('/').filter(Boolean).map(decodeURIComponent);
+        } else if (!Array.isArray(segments)) {
+            // Fallback: parse from req.url after the first "/api/"
+            const raw = (req.url || req.originalUrl || '').split('?')[0];
+            const idx = raw.indexOf('/api/');
+            const after = idx >= 0 ? raw.slice(idx + 5) : raw.replace(/^\/api\/?/, '');
+            segments = after === '' ? [] : after.split('/').filter(Boolean).map(decodeURIComponent);
+        }
+        req.query.path = segments;
+
+        // Optional debug log (remove if noisy)
+        console.log('catch-all hit', req.method, req.url, 'segments=', segments);
+
+        const app = await getApp();
+        return app(req, res);
+    } catch (error) {
+        console.error("API request failed", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
 }
