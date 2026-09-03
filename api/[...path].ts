@@ -1727,10 +1727,6 @@ function getApp() {
 
 export default async function handler(req: any, res: any) {
 	try {
-		const requestUrl = String(req.url || "/");
-		if (!requestUrl.startsWith("/api/")) {
-			req.url = `/api${requestUrl.startsWith("/") ? requestUrl : `/${requestUrl}`}`;
-		}
 		const app = await getApp();
 		return app(req, res);
 	} catch (error) {
