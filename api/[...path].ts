@@ -1726,11 +1726,30 @@ function getApp() {
 }
 
 export default async function handler(req: any, res: any) {
-	try {
-		const app = await getApp();
-		return app(req, res);
-	} catch (error) {
-		console.error("API request failed", error);
-		return res.status(500).json({ error: "Internal server error" });
-	}
+    try {
+        // Normalize catch-all segments into req.query.path as an array
+        req.query = req.query || {};
+        let segments: any = req.query.path ?? req.query['path'];
+
+        if (!segments) {
+            const rawUrl = req.url || '';
+            const pathname = rawUrl.split('?')[0];
+            const afterApi = pathname.replace(/^\/api\/?/, '');
+            segments = afterApi === '' ? [] : afterApi.split('/').filter(Boolean).map(decodeURIComponent);
+        } else if (typeof segments === 'string') {
+            segments = segments.split('/').filter(Boolean).map(decodeURIComponent);
+        } else if (Array.isArray(segments)) {
+            segments = segments.map((s: any) => String(s)).map(decodeURIComponent);
+        } else {
+            segments = [];
+        }
+
+        req.query.path = segments;
+
+        const app = await getApp();
+        return app(req, res);
+    } catch (error) {
+        console.error("API request failed", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
 }
