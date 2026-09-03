@@ -48,7 +48,7 @@ export default function Register() {
 
   const onSubmit = async (data: RegisterForm) => {
     try {
-      const response = await apiRequest("POST", "/api/auth/register", {
+      const response = await apiRequest("POST", "/api/register", {
         username: data.email,
         fullName: `${data.firstName} ${data.lastName}`,
         email: data.email,

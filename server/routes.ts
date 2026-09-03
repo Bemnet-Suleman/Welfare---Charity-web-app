@@ -24,7 +24,7 @@ const pendingDonations: Record<string, PendingDonation> = {};
 
 export async function registerRoutes(app: Express, upload: any): Promise<void> {
   // Auth routes
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/login", async (req, res) => {
     const user = await storage.getUserByEmail(String(req.body.email || ""));
     if (!user || user.blocked || !(await bcrypt.compare(String(req.body.password || ""), user.password))) {
       return res.status(401).json({ error: "Invalid email or password" });
@@ -33,12 +33,12 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     return res.json({ user });
   });
 
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/logout", (req, res) => {
     clearAuthCookie(res);
     res.json({ message: "Logged out" });
   });
 
-  app.get("/api/auth/me", async (req, res) => {
+  app.get("/api/me", async (req, res) => {
     if (req.user) {
       const currentUser = req.user as any;
       let isVolunteer = false;
@@ -72,7 +72,7 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     res.json(volunteers);
   });
 
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
       const existingUser = await storage.getUserByEmail(userData.email);
@@ -109,7 +109,7 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     }
   });
 
-  app.get("/api/auth/verify-email/:token", async (req, res) => {
+  app.get("/api/verify-email/:token", async (req, res) => {
     try {
       const user = await storage.getUserByVerificationToken(req.params.token);
       if (!user) {
@@ -189,7 +189,7 @@ export async function registerRoutes(app: Express, upload: any): Promise<void> {
     }
   });
 
-  app.post("/api/auth/resend-verification", async (req, res) => {
+  app.post("/api/resend-verification", async (req, res) => {
     try {
       const email = (req.body.email || "").toString();
       const user = await storage.getUserByEmail(email);

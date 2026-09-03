@@ -52,7 +52,7 @@ export const getQueryFn: <T>(options: {
   };
 
 export async function fetchCurrentUser() {
-  const res = await apiRequest("GET", "/api/auth/me");
+  const res = await apiRequest("GET", "/api/me");
   const data = await res.json();
   return (data as any).user;
 }

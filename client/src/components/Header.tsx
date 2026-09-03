@@ -119,7 +119,7 @@ export function Header() {
                     <DropdownMenuItem
                       className="cursor-pointer"
                       onClick={async () => {
-                        await apiRequest("POST", "/api/auth/logout");
+                        await apiRequest("POST", "/api/logout");
                         window.location.reload();
                       }}
                     >
@@ -237,7 +237,7 @@ export function Header() {
                   variant="outline"
                   className="w-full"
                   onClick={async () => {
-                    await apiRequest("POST", "/api/auth/logout");
+                    await apiRequest("POST", "/api/logout");
                     window.location.reload();
                   }}
                 >
