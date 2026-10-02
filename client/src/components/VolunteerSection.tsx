@@ -9,26 +9,26 @@ import { Link } from "wouter";
 export function VolunteerSection() {
   const { t } = useTranslation();
 
-  const { data: campaigns, isLoading, error } = useQuery({
-    queryKey: ["volunteerOpportunities"],
+  const { data: opportunitiesData, isLoading, error } = useQuery({
+    queryKey: ["publicVolunteerOpportunities"],
     queryFn: async () => {
-      const data = await apiRequest("GET", "/api/campaigns?limit=3").then((response) => response.json());
+      const data = await apiRequest("GET", "/api/volunteers?listingsOnly=true&limit=3").then((response) => response.json());
       if (!Array.isArray(data)) return [];
-      return data;
+      return data.filter((item: any) => item?.isListing === true && item?.status === "approved");
     },
     staleTime: 1000 * 60 * 5,
   });
 
-  const opportunities: VolunteerCardProps[] = (campaigns || []).map((item: any) => ({
-    id: item.id || String(item.organizerId || Math.random()),
-    title: item.title || item.role || "Volunteer Opportunity",
-    organization: item.organizer?.name || item.organization || item.campaign || "Community Partner",
-    description: item.description || "No description provided.",
-    location: item.location || "Remote",
-    timeCommitment: item.timeCommitment || item.duration || "Flexible",
-    skills: item.skills || item.tags || ["Community"],
-    volunteers: item.volunteers || item.participants || 0,
-    spotsLeft: item.spotsLeft || item.openSpots || 1,
+  const opportunities: VolunteerCardProps[] = (opportunitiesData || []).map((item: any) => ({
+    id: item.id || String(item.campaignId || Math.random()),
+    title: item.title || item.campaignTitle || item.campaign?.title || "Volunteer Opportunity",
+    organization: item.organization || item.campaign?.title || "Community Partner",
+    description: item.description || item.experience || item.campaign?.description || "Support our community through a meaningful volunteer role.",
+    location: item.location || item.campaign?.location || "Remote / Flexible",
+    timeCommitment: item.availability || item.timeCommitment || item.duration || "Flexible",
+    skills: Array.isArray(item.skills) && item.skills.length > 0 ? item.skills : ["Community Support"],
+    volunteers: Number(item.volunteers ?? item.approvedVolunteers ?? 0),
+    spotsLeft: Number(item.spotsLeft ?? 3),
   }));
 
   if (isLoading) {

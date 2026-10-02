@@ -13,7 +13,7 @@ import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { getSupabaseClient } from "../lib/supabase";
+import { getAppUrl, getSupabaseClient } from "../lib/supabase";
 
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -51,7 +51,15 @@ export default function Register() {
       const supabase = await getSupabaseClient();
       if (!supabase) throw new Error(t("Supabase Auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."));
       const email = data.email.trim().toLowerCase();
-      const emailRedirectTo = `${window.location.origin}/verify-email`;
+      const appUrl = await getAppUrl();
+      if (!appUrl) throw new Error(t("The public app URL is not configured for email verification."));
+      const redirectOrigin = new URL(appUrl);
+      const redirectIsLocal = ["localhost", "127.0.0.1", "::1"].includes(redirectOrigin.hostname);
+      const pageIsLocal = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+      if (redirectIsLocal && !pageIsLocal) {
+        throw new Error(t("Email verification cannot use a localhost URL. Configure the public app URL."));
+      }
+      const emailRedirectTo = new URL("/verify-email", redirectOrigin).toString();
       const { data: signupResult, error: signupError } = await supabase.auth.signUp({
         email,
         password: data.password,

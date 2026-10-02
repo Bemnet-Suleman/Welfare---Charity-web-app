@@ -577,17 +577,46 @@ function requireAdmin(req: Request, res: Response) {
 }
 
 function getRequestOrigin(req: Request) {
-  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
-  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, "");
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`.replace(/\/$/, "");
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
+  const production = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+  const isLocalUrl = (value: string) => {
+    try {
+      const hostname = new URL(value).hostname;
+      return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+    } catch {
+      return true;
+    }
+  };
+  const normalize = (value: string, defaultProtocol = "https") => {
+    const trimmed = value.trim().replace(/\/$/, "");
+    return /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) ? trimmed : `${defaultProtocol}://${trimmed}`;
+  };
+
+  const candidates = [
+    process.env.FRONTEND_URL,
+    process.env.PUBLIC_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_URL,
+    `${req.get("x-forwarded-proto")?.split(",")[0] || req.protocol}://${req.get("x-forwarded-host")?.split(",")[0] || req.get("host") || ""}`,
+  ].filter((value): value is string => Boolean(value?.trim()));
+
+  for (const candidate of candidates) {
+    const origin = normalize(candidate, req.protocol || "http");
+    if (!production || !isLocalUrl(origin)) return origin;
+  }
+
+  if (production) throw new Error("A public frontend URL is required for email verification redirects");
   return `${req.protocol}://${req.get("host") || "localhost"}`.replace(/\/$/, "");
 }
 
 export async function registerRoutes(app: Express, upload: any, privateUpload: any, manualPaymentUpload: any, privateUploadsDir: string): Promise<void> {
-  app.get("/api/auth/config", (_req, res) => {
+  app.get("/api/auth/config", (req, res) => {
     res.setHeader("Cache-Control", "public, max-age=300");
-    res.json({ supabaseUrl, supabaseAnonKey });
+    try {
+      res.json({ supabaseUrl, supabaseAnonKey, appUrl: getRequestOrigin(req) });
+    } catch (error) {
+      console.error("Unable to determine public frontend URL:", error);
+      res.status(500).json({ error: "Email verification URL is not configured" });
+    }
   });
 
   // Auth routes
