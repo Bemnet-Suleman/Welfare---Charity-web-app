@@ -3,11 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiRequest, fetchCurrentUser } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { BookOpen, BriefcaseBusiness, CreditCard, HandHeart, LayoutDashboard, Megaphone, Search, UsersRound } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 type User = {
   id: string;
@@ -24,8 +27,19 @@ export default function AdminDashboard() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedUserRole, setSelectedUserRole] = useState<string | null>(null);
-  
+  const [activeSection, setActiveSection] = useState("overview");
+  const [userSearch, setUserSearch] = useState("");
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [storySearch, setStorySearch] = useState("");
+  const [aidSearch, setAidSearch] = useState("");
+  const [volunteerSearch, setVolunteerSearch] = useState("");
+  const [opportunitySearch, setOpportunitySearch] = useState("");
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [campaignLimit, setCampaignLimit] = useState(10);
+  const [storyLimit, setStoryLimit] = useState(10);
+  const [aidLimit, setAidLimit] = useState(10);
+  const [applicationLimit, setApplicationLimit] = useState(10);
+  const [opportunityLimit, setOpportunityLimit] = useState(10);
   // Adds a state tab so approved or rejected logs stay reviewable instead of vanishing
   const [volunteerSectionFilter, setVolunteerSectionFilter] = useState<string>("pending");
 
@@ -41,19 +55,19 @@ export default function AdminDashboard() {
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["admin/campaigns"],
-    queryFn: () => apiRequest("GET", "/api/campaigns?includeArchived=true").then((res) => res.json()),
+    queryFn: () => apiRequest("GET", "/api/campaigns?includeArchived=true&limit=100").then((res) => res.json()),
     enabled: isAdmin,
   });
 
   const { data: stories = [] } = useQuery({
     queryKey: ["admin/stories"],
-    queryFn: () => apiRequest("GET", "/api/stories").then((res) => res.json()),
+    queryFn: () => apiRequest("GET", "/api/stories?includeDrafts=true&limit=100").then((res) => res.json()),
     enabled: isAdmin,
   });
 
   const { data: aidRequests = [] } = useQuery({
     queryKey: ["admin/aid-requests"],
-    queryFn: () => apiRequest("GET", "/api/aid-requests").then((res) => res.json()),
+    queryFn: () => apiRequest("GET", "/api/aid-requests?limit=100").then((res) => res.json()),
     enabled: isAdmin,
   });
 
@@ -63,17 +77,24 @@ export default function AdminDashboard() {
     enabled: isAdmin,
   });
 
-  const { data: volunteerOpportunities = [] } = useQuery({
-    queryKey: ["admin/volunteer-opportunities"],
-    queryFn: () => apiRequest("GET", "/api/volunteer-opportunities").then((res) => res.json()),
+  const { data: paymentReviews = [] } = useQuery({
+    queryKey: ["admin/manual-payments"],
+    queryFn: () => apiRequest("GET", "/api/admin/manual-payments?status=pending").then((res) => res.json()),
     enabled: isAdmin,
   });
 
-  const { data: users = [] } = useQuery({
-    queryKey: ["admin/users"],
-    queryFn: () => apiRequest("GET", "/api/users").then((res) => res.json()),
+  const usersQuery = useInfiniteQuery({
+    queryKey: ["admin/users", userSearch],
+    queryFn: async ({ pageParam = 0 }) => {
+      const params = new URLSearchParams({ limit: "10", offset: String(pageParam) });
+      if (userSearch.trim()) params.set("search", userSearch.trim());
+      return apiRequest("GET", `/api/users?${params.toString()}`).then((res) => res.json());
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextOffset : undefined,
     enabled: canManageUsers,
   });
+  const users = usersQuery.data?.pages.flatMap((page) => page.users) || [];
 
   // Map userId -> volunteer status (approved | pending | rejected)
   const volunteerStatusMap = (volunteers as any[]).reduce((m: Map<string, string>, v: any) => {
@@ -101,10 +122,9 @@ export default function AdminDashboard() {
     if (op.campaignId) opportunitiesMap.set(op.campaignId, op);
   });
 
-  const openOpportunities = volunteerPostings.filter((v: any) => {
-    const creator = usersMap.get(v.userId);
-    return v.status === "approved" && (creator?.role === "admin" || creator?.role === "system_admin");
-  });
+  const openOpportunities = volunteerPostings.filter((v: any) => v.status === "approved" && v.isListing === true)
+    .filter((v: any) => !opportunitySearch.trim() || [v.experience, v.availability, v.campaignTitle, ...(v.skills || [])]
+      .some((value) => String(value || "").toLowerCase().includes(opportunitySearch.toLowerCase())));
  
 
 
@@ -133,6 +153,7 @@ export default function AdminDashboard() {
         description: successMessage,
       });
       queryClient.invalidateQueries({ queryKey: ["admin/users"] });
+      if (updates.role) queryClient.invalidateQueries({ queryKey: ["auth/me"] });
     } catch (error: any) {
       toast({
         title: t("Update Failed"),
@@ -205,27 +226,45 @@ export default function AdminDashboard() {
     }
   };
 
-  const userCounts = (users as User[]).reduce(
-    (acc, current) => {
-      const role = current.role || "donor";
-      acc[role] = (acc[role] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-
-
-  const processedVolunteerApplications = (volunteers as any[]).filter((v: any) => {
-    const applicant = usersMap.get(v.userId);
-    const isApplicantAdmin = applicant?.role === "admin" || applicant?.role === "system_admin";
-
-    return v.userId && !isApplicantAdmin;
-  });
+  const processedVolunteerApplications = (volunteers as any[]).filter((v: any) => v.userId && !v.isListing);
  
   const displayedApplications = processedVolunteerApplications.filter((v: any) => {
     const status = v.status || "pending";
     return status.toLowerCase() === volunteerSectionFilter.toLowerCase();
   });
+
+  const visibleCampaigns = (campaigns as any[]).filter((item) => `${item.title} ${item.description} ${item.category}`.toLowerCase().includes(campaignSearch.toLowerCase()));
+  const visibleStories = (stories as any[]).filter((item) => `${item.title} ${item.author?.name || ""}`.toLowerCase().includes(storySearch.toLowerCase()));
+  const visibleAidRequests = (aidRequests as any[]).filter((item) => `${item.title} ${item.category} ${item.location} ${item.status}`.toLowerCase().includes(aidSearch.toLowerCase()));
+  const visiblePaymentReviews = (paymentReviews as any[]).filter((item) => `${item.donorName} ${item.donorEmail} ${item.campaignTitle} ${item.paymentReference} ${item.paymentMethod}`.toLowerCase().includes(paymentSearch.toLowerCase()));
+
+  const reviewManualPayment = async (id: string, decision: "approve" | "reject") => {
+    try {
+      await apiRequest("POST", `/api/admin/manual-payments/${id}/review`, { decision });
+      toast({ title: decision === "approve" ? t("Donation approved") : t("Payment proof rejected"), description: decision === "approve" ? t("The donation and campaign total have been updated.") : t("This proof was rejected; no donation was recorded.") });
+      queryClient.invalidateQueries({ queryKey: ["admin/manual-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["admin/campaigns"] });
+    } catch (error: any) {
+      toast({ title: t("Review failed"), description: error.message, variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-admin-section]"));
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target.id) setActiveSection(visible.target.id);
+    }, { rootMargin: "-20% 0px -65% 0px", threshold: [0, 0.2, 0.5] });
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [isAdmin]);
+
+  const matchingApplications = displayedApplications.filter((application: any) => {
+    const applicant = usersMap.get(application.userId);
+    return !volunteerSearch.trim() || [application.experience, application.availability, application.applicantName, application.applicantEmail, applicant?.fullName, applicant?.username, applicant?.email]
+      .some((value) => String(value || "").toLowerCase().includes(volunteerSearch.toLowerCase()));
+  });
+  const visibleApplications = matchingApplications.slice(0, applicationLimit);
 
   if (authLoading) {
     return <div className="min-h-screen py-24 text-center">{t("Loading admin dashboard...")}</div>;
@@ -255,7 +294,32 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen py-12">
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="max-w-[1600px] mx-auto px-4 flex flex-col lg:flex-row gap-6">
+        <aside className="lg:w-56 shrink-0 lg:sticky lg:top-20 lg:self-start rounded-xl border bg-card p-3 h-fit">
+          <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("Admin navigation")}</p>
+          <nav className="flex lg:flex-col gap-1 overflow-x-auto" aria-label={t("Admin sections")}>
+            {[
+              ["overview", t("Overview"), LayoutDashboard],
+              ["campaigns", t("Campaigns"), Megaphone],
+              ["stories", t("Stories"), BookOpen],
+              ["opportunities", t("Opportunities"), BriefcaseBusiness],
+              ["volunteers", t("Volunteers"), UsersRound],
+              ["aid", t("Aid requests"), HandHeart],
+              ["payments", t("Payment review"), CreditCard],
+              ...(canManageUsers ? [["users", t("Users"), UsersRound] as const] : []),
+            ].map(([id, label, Icon]: any) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                onClick={() => setActiveSection(id)}
+                className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${activeSection === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+              >
+                <Icon className="h-4 w-4" />{label}
+              </a>
+            ))}
+          </nav>
+        </aside>
+        <div className="min-w-0 flex-1">
         <div className="mb-10">
           <h1 className="text-4xl md:text-5xl font-bold mb-3 font-['Poppins']">
             {user?.role === "system_admin" ? "System Administration" : "Charity Admin Control Center"}
@@ -267,7 +331,7 @@ export default function AdminDashboard() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+        <div id="overview" data-admin-section className="scroll-mt-24 grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
           <Card className="p-6">
             <p className="text-sm text-muted-foreground">{t("Active Campaigns")}</p>
             <p className="text-3xl font-bold">{(campaigns as any[]).length}</p>
@@ -300,11 +364,15 @@ export default function AdminDashboard() {
                 </Button>
               </Link>
             </div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={campaignSearch} onChange={(event) => setCampaignSearch(event.target.value)} placeholder={t("Search campaigns...")} className="pl-9" aria-label={t("Search campaigns")} />
+            </div>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {(campaigns as any[]).length === 0 ? (
+              {visibleCampaigns.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("No campaigns yet")}</p>
               ) : (
-                (campaigns as any[]).map((campaign: any) => (
+                visibleCampaigns.slice(0, campaignLimit).map((campaign: any) => (
                   <div key={campaign.id} className="flex items-center justify-between p-3 border rounded-lg" style={{ opacity: campaign.archived ? 0.6 : 1 }}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -355,10 +423,11 @@ export default function AdminDashboard() {
                 ))
               )}
             </div>
+            {visibleCampaigns.length > campaignLimit && <Button variant="outline" className="mt-3 w-full" onClick={() => setCampaignLimit((value) => value + 10)}>{t("Load more campaigns")}</Button>}
           </Card>
 
           {/* Stories Card */}
-          <Card className="p-6">
+          <Card id="stories" data-admin-section className="p-6 scroll-mt-24">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-xl font-bold font-['Poppins']">{t("Stories")}</h2>
@@ -372,11 +441,15 @@ export default function AdminDashboard() {
                 </Button>
               </Link>
             </div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={storySearch} onChange={(event) => setStorySearch(event.target.value)} placeholder={t("Search stories...")} className="pl-9" aria-label={t("Search stories")} />
+            </div>
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {(stories as any[]).length === 0 ? (
+              {visibleStories.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{t("No stories yet")}</p>
               ) : (
-                (stories as any[]).map((story: any) => (
+                visibleStories.slice(0, storyLimit).map((story: any) => (
                   <div key={story.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{story.title}</p>
@@ -415,10 +488,11 @@ export default function AdminDashboard() {
                 ))
               )}
             </div>
+            {visibleStories.length > storyLimit && <Button variant="outline" className="mt-3 w-full" onClick={() => setStoryLimit((value) => value + 10)}>{t("Load more stories")}</Button>}
           </Card>
 
           {/* Volunteer Opportunities / Placement Management Card */}
-          <Card className="p-6">
+          <Card id="opportunities" data-admin-section className="p-6 scroll-mt-24">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-xl font-bold font-['Poppins']">{t("Active Volunteer Postings")}</h2>
@@ -432,13 +506,18 @@ export default function AdminDashboard() {
                 </Button>
               </Link>
             </div>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={opportunitySearch} onChange={(event) => setOpportunitySearch(event.target.value)} placeholder={t("Search opportunities by skills, campaign, or availability...")} className="pl-9" aria-label={t("Search opportunities")} />
+            </div>
             {loadingPostings ? (
               <div className="text-center py-8 text-muted-foreground animate-pulse">
                 {t("Fetching active positions records...")}
               </div>
             ) : openOpportunities.length > 0 ? (
+              <>
               <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                {openOpportunities.map((op: any) => (
+                {openOpportunities.slice(0, opportunityLimit).map((op: any) => (
                   <div 
                     key={op.id} 
                     className="p-4 border rounded-xl bg-card hover:shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
@@ -477,6 +556,8 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
+              {openOpportunities.length > opportunityLimit && <Button variant="outline" className="mt-3 w-full" onClick={() => setOpportunityLimit((value) => value + 10)}>{t("Load more opportunities")}</Button>}
+              </>
             ) : (
               <div className="text-center py-12 border border-dashed rounded-2xl text-muted-foreground bg-muted/5">
                 {t("No customized opportunity configurations found. Launch one using the button above.")}
@@ -486,7 +567,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Re-engineered Applications Section with Profile Lookup and Status Tabs */}
-        <div className="mt-8">
+        <div id="volunteers" data-admin-section className="mt-8 scroll-mt-24">
           <Card className="p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
@@ -509,6 +590,10 @@ export default function AdminDashboard() {
                 </Select>
               </div>
             </div>
+            <div className="relative mb-5">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={volunteerSearch} onChange={(event) => setVolunteerSearch(event.target.value)} placeholder={t("Search applicant, email, experience, or availability...")} className="pl-9" aria-label={t("Search volunteer applications")} />
+            </div>
 
             {displayedApplications.length === 0 ? (
               <div className="text-center py-10 border border-dashed rounded-xl text-muted-foreground text-sm bg-muted/5">
@@ -516,7 +601,7 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                {displayedApplications.map((volunteer: any) => {
+                {visibleApplications.map((volunteer: any) => {
                   const profileInfo = usersMap.get(volunteer.userId);
                   
                   const targetId = volunteer.campaignId || volunteer.opportunityId || volunteer.id;
@@ -530,10 +615,10 @@ export default function AdminDashboard() {
             <div className="bg-muted/60 p-3 rounded-lg border border-border/80 max-w-xl">
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{t("Applicant Account Profiles")}</p>
               <p className="text-sm font-semibold text-foreground">
-                👤 {profileInfo?.fullName || profileInfo?.username || t("Anonymous Volunteer")}
+                👤 {profileInfo?.fullName || profileInfo?.username || volunteer.applicantName || t("Anonymous Volunteer")}
               </p>
               <p className="text-xs text-muted-foreground font-medium pl-4 mt-0.5">
-                {profileInfo?.email || t("No contact email assigned")}
+                {profileInfo?.email || volunteer.applicantEmail || t("No contact email assigned")}
               </p>
             </div>
 
@@ -639,17 +724,22 @@ export default function AdminDashboard() {
                 })}
               </div>
             )}
+            {matchingApplications.length > applicationLimit && <Button variant="outline" className="mt-4 w-full" onClick={() => setApplicationLimit((value) => value + 10)}>{t("Load more applications")}</Button>}
           </Card>
         </div>
 
-        <div className="mt-8">
+        <div id="aid" data-admin-section className="mt-8 scroll-mt-24">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">{t("Aid Request Management")}</h2>
-            {(aidRequests as any[]).length === 0 ? (
+            <div className="relative mb-5">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={aidSearch} onChange={(event) => setAidSearch(event.target.value)} placeholder={t("Search aid requests by title, category, location, or status...")} className="pl-9" aria-label={t("Search aid requests")} />
+            </div>
+            {visibleAidRequests.length === 0 ? (
               <p className="text-muted-foreground">{t("No aid requests")}</p>
             ) : (
               <div className="space-y-3">
-                {(aidRequests as any[]).map((request: any) => (
+                {visibleAidRequests.slice(0, aidLimit).map((request: any) => (
                   <div key={request.id || request.userId || `${request.title}-${request.category}`}
                     className="flex flex-col gap-3 p-3 border rounded-lg sm:flex-row sm:items-center sm:justify-between"
                   >
@@ -711,6 +801,50 @@ export default function AdminDashboard() {
                 ))}
               </div>
             )}
+            {visibleAidRequests.length > aidLimit && <Button variant="outline" className="mt-4 w-full" onClick={() => setAidLimit((value) => value + 10)}>{t("Load more aid requests")}</Button>}
+          </Card>
+        </div>
+
+        <div id="payments" data-admin-section className="mt-8 scroll-mt-24">
+          <Card className="p-6">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">{t("Manual payment review")}</h2>
+                <p className="text-sm text-muted-foreground">{t("Verify Telebirr or other transfer receipts before recording donations.")}</p>
+              </div>
+              <Badge variant="secondary">{visiblePaymentReviews.length} {t("pending")}</Badge>
+            </div>
+            <div className="relative mb-5">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={paymentSearch} onChange={(event) => setPaymentSearch(event.target.value)} placeholder={t("Search by donor, campaign, reference, or method...")} className="pl-9" aria-label={t("Search manual payments")} />
+            </div>
+            {visiblePaymentReviews.length ? (
+              <div className="space-y-4">
+                {visiblePaymentReviews.slice(0, 10).map((payment: any) => (
+                  <div key={payment.id} className="grid gap-4 rounded-xl border p-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">{payment.donorName}</h3>
+                        <Badge variant="outline" className="capitalize">{payment.paymentMethod}</Badge>
+                        <Badge>{payment.amount} {t("currency.Birr")}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{payment.donorEmail}</p>
+                      <p className="text-sm"><span className="font-medium">{t("Campaign:")}</span> {payment.campaignTitle}</p>
+                      {payment.paymentReference && <p className="text-sm"><span className="font-medium">{t("Reference:")}</span> {payment.paymentReference}</p>}
+                      <p className="text-xs text-muted-foreground">{new Date(payment.createdAt).toLocaleString()}</p>
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        <Button size="sm" onClick={() => reviewManualPayment(payment.id, "approve")}>{t("Approve and record donation")}</Button>
+                        <Button size="sm" variant="destructive" onClick={() => reviewManualPayment(payment.id, "reject")}>{t("Reject proof")}</Button>
+                      </div>
+                    </div>
+                    {payment.proofUrl ? (
+                      payment.proofUrl.toLowerCase().includes(".pdf") ? <a className="text-primary underline" href={payment.proofUrl} target="_blank" rel="noreferrer">{t("Open payment PDF")}</a> : <a href={payment.proofUrl} target="_blank" rel="noreferrer"><img src={payment.proofUrl} alt={t("Private payment proof uploaded by donor")} className="max-h-80 w-full rounded-lg border object-contain" /></a>
+                    ) : <p className="text-sm text-destructive">{t("Proof image could not be loaded")}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{t("No pending manual payments match this search.")}</p>}
+            {visiblePaymentReviews.length > 10 && <p className="mt-3 text-center text-xs text-muted-foreground">{t("Showing the first 10 matches; refine search to find a submission.")}</p>}
           </Card>
         </div>
 
@@ -720,22 +854,20 @@ export default function AdminDashboard() {
             <p className="text-sm text-muted-foreground mb-5">
               {t("Verify and manage user accounts, including donors, volunteers and beneficiaries.")}
             </p>
-            <div className="space-y-3">
-              {Object.entries(userCounts).map(([role, count]) => (
-                <div key={role} className="flex items-center justify-between gap-2">
-                  <span className="capitalize">{role}</span>
-                  <Badge>{count}</Badge>
-                </div>
-              ))}
-            </div>
+            <p className="text-3xl font-bold">{users.length}</p>
+            <p className="text-xs text-muted-foreground">{t("Most recently loaded accounts; use search or load more to browse.")}</p>
           </Card>
         </div>
 
         {canManageUsers && (
-          <div className="mt-12">
+          <div id="users" data-admin-section className="mt-12 scroll-mt-24">
             <h2 className="text-2xl font-bold mb-6 font-['Poppins']">{t("System Administration")}</h2>
             <Card className="p-6">
               <h3 className="text-xl font-semibold mb-4">{t("User Management")}</h3>
+              <div className="relative mb-5">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder={t("Search by name, username, or email...")} className="pl-9" aria-label={t("Search users")} />
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b">
@@ -818,10 +950,18 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+              {usersQuery.hasNextPage && (
+                <div className="mt-5 flex justify-center">
+                  <Button variant="outline" onClick={() => usersQuery.fetchNextPage()} disabled={usersQuery.isFetchingNextPage}>
+                    {usersQuery.isFetchingNextPage ? t("Loading...") : t("Load more users")}
+                  </Button>
+                </div>
+              )}
             </Card>
           </div>
         )}
         
+        </div>
       </div>
     </div>
   );

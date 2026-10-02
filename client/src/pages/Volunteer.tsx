@@ -36,7 +36,7 @@ export default function Volunteer() {
 
   const { data: opportunitiesData = [], isLoading, error } = useQuery({
     queryKey: ["/api/public-opportunities-spec"],
-    queryFn: () => apiRequest("GET", "/api/volunteers?limit=100").then((res) => res.json()),
+    queryFn: () => apiRequest("GET", "/api/volunteers?listingsOnly=true&limit=100").then((res) => res.json()),
   });
 
   const isDonor = authData?.role === "donor";

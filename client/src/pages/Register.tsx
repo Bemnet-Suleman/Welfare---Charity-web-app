@@ -13,6 +13,7 @@ import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { getSupabaseClient } from "../lib/supabase";
 
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -35,7 +36,6 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const [verificationLink, setVerificationLink] = useState<string | null>(null);
   const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -48,29 +48,35 @@ export default function Register() {
 
   const onSubmit = async (data: RegisterForm) => {
     try {
-      const response = await apiRequest("POST", "/api/register", {
-        username: data.email,
-        fullName: `${data.firstName} ${data.lastName}`,
-        email: data.email,
+      const supabase = await getSupabaseClient();
+      if (!supabase) throw new Error(t("Supabase Auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."));
+      const email = data.email.trim().toLowerCase();
+      const emailRedirectTo = `${window.location.origin}/verify-email`;
+      const { data: signupResult, error: signupError } = await supabase.auth.signUp({
+        email,
         password: data.password,
-        role: data.userType,
+        options: {
+          emailRedirectTo,
+          data: { username: email, full_name: `${data.firstName} ${data.lastName}`, role: data.userType },
+        },
       });
-      const result = await response.json();
-      if (result.verificationLink) {
-        setVerificationLink(result.verificationLink);
-        try {
-          const url = new URL(result.verificationLink);
-          setLocation(url.pathname);
-        } catch {
-          setLocation('/verify-email');
-        }
-      } else {
-        toast({
-          title: t("Registration Successful"),
-          description: t("Please verify your email before signing in."),
-        });
-        setLocation('/login');
+      if (signupError) throw signupError;
+      if (!signupResult.user) throw new Error(t("Supabase did not return a new account."));
+      if (!signupResult.session) {
+        toast({ title: t("Check your email"), description: t("Supabase sent a verification link. Your profile will be completed when you open it.") });
+        setLocation("/verify-email");
+        return;
       }
+      const response = await apiRequest("POST", "/api/register", {
+        authUserId: signupResult.user.id,
+      }, { headers: { Authorization: `Bearer ${signupResult.session.access_token}` } });
+      const result = await response.json();
+      toast({
+        title: signupResult.session ? t("Registration Successful") : t("Check your email"),
+        description: result.message || t("Your profile has been created."),
+      });
+      if (signupResult.session) await supabase.auth.signOut();
+      setLocation('/login');
     } catch (error: any) {
       toast({
         title: t("Registration Failed"),
@@ -210,12 +216,6 @@ export default function Register() {
             >
               {isSubmitting ? t("Creating Account...") : t("Create Account")}
             </Button>
-
-            {verificationLink && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-primary mt-4">
-                {t("Your verification link")}: <a href={verificationLink} className="underline">{verificationLink}</a>
-              </div>
-            )}
 
             <p className="text-center text-sm text-muted-foreground">
               {t("Already have an account?")}{" "}

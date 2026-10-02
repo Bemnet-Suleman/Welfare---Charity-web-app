@@ -84,7 +84,7 @@ export default function DonationSuccess() {
               <a href="/">{t("Return to Home")}</a>
             </Button>
             <Button variant="outline" asChild>
-              <a href={`/campaigns/${donation?.campaignId}`}>{t("View Campaign")}</a>
+              <a href={`/campaign/${donation?.campaignId}`}>{t("View Campaign")}</a>
             </Button>
           </div>
         </Card>

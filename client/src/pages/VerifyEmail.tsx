@@ -1,37 +1,40 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "wouter";
+import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
+import { getSupabaseClient } from "../lib/supabase";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function VerifyEmail() {
-  const { token } = useParams();
   const { t } = useTranslation();
   const [status, setStatus] = useState<"loading" | "pending" | "success" | "error">("loading");
   const [message, setMessage] = useState<string>("");
 
   useEffect(() => {
     async function verify() {
-      if (!token) {
-        setStatus("pending");
-        setMessage(
-          t(
-            "A verification email has been sent to your address. Click the link in the email to complete verification."
-          )
-        );
+      const supabase = await getSupabaseClient();
+      if (!supabase) {
+        setStatus("error");
+        setMessage(t("Supabase Auth is not configured in this deployment."));
         return;
       }
-
       try {
-        const response = await apiRequest("GET", `/api/verify-email/${token}`);
-        const result = await response.json();
-        if (!response.ok) {
+        const { data, error } = await supabase.auth.getSession();
+        const authError = new URLSearchParams(window.location.search).get("error_description");
+        if (error || authError) {
           setStatus("error");
-          setMessage(result.error || t("Email verification failed."));
-        } else {
+          setMessage(authError || error?.message || t("Email verification failed."));
+        } else if (data.session?.user.email_confirmed_at) {
+          await apiRequest("POST", "/api/register", { authUserId: data.session.user.id }, {
+            headers: { Authorization: `Bearer ${data.session.access_token}` },
+          });
+          await supabase.auth.signOut();
           setStatus("success");
-          setMessage(result.message || t("Your email has been verified successfully."));
+          setMessage(t("Your email has been verified with Supabase. You can now sign in."));
+        } else {
+          setStatus("pending");
+          setMessage(t("Open the Supabase verification link from your email to finish confirming this account."));
         }
       } catch (error: any) {
         setStatus("error");
@@ -40,7 +43,7 @@ export default function VerifyEmail() {
     }
 
     verify();
-  }, [token, t]);
+  }, [t]);
 
   return (
     <div className="min-h-screen py-20 px-4">

@@ -45,3 +45,6 @@ client/public/uploads/
 server/uploads/
 .vercel
 .env*
+
+# map
+CODEBASE_MAP.md

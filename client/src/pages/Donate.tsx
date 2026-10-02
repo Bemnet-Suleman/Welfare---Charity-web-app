@@ -37,6 +37,9 @@ export default function Donate() {
   const [, setLocation] = useLocation();
   const quickAmounts = [250, 500, 1000, 5000, 10000];
   const [isVerifying, setIsVerifying] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"chapa" | "telebirr" | "other">("chapa");
+  const [paymentProof, setPaymentProof] = useState<File | null>(null);
+  const [paymentReference, setPaymentReference] = useState("");
 
   const campaignIdFromUrl = typeof window !== "undefined"
     ? new URLSearchParams(window.location.search).get("campaignId") || ""
@@ -170,6 +173,15 @@ export default function Donate() {
   }, [t, toast, campaignIdFromUrl, setLocation]);
 
   const onSubmit = async (data: DonationForm) => {
+    if (paymentMethod !== "chapa" && !isAuthenticated) {
+      toast({ title: t("Sign in required"), description: t("Sign in to submit manual payment proof so the verified donation can be credited to your account."), variant: "destructive" });
+      setLocation("/login");
+      return;
+    }
+    if (paymentMethod !== "chapa" && !paymentProof) {
+      toast({ title: t("Payment proof required"), description: t("Upload a screenshot or receipt before submitting manual payment."), variant: "destructive" });
+      return;
+    }
     if (!isAuthenticated) {
       if (!data.firstName || !data.lastName || !data.email) {
         toast({ title: t("Missing info"), description: t("Guest donors must provide full name and email."), variant: "destructive" });
@@ -178,6 +190,22 @@ export default function Donate() {
     }
 
     try {
+      if (paymentMethod !== "chapa") {
+        const proofForm = new FormData();
+        proofForm.append("campaignId", data.campaignId);
+        proofForm.append("amount", data.amount);
+        proofForm.append("paymentMethod", paymentMethod);
+        proofForm.append("paymentReference", paymentReference);
+        proofForm.append("proof", paymentProof!);
+        await apiRequest("POST", "/api/payments/manual", proofForm);
+        toast({ title: t("Payment proof submitted"), description: t("Your donation will be added after an admin verifies the payment." ) });
+        setPaymentProof(null);
+        setPaymentReference("");
+        setValue("amount", "");
+        setLocation("/profile");
+        return;
+      }
+
       const donationPayload: any = {
         campaignId: data.campaignId,
         amount: data.amount,
@@ -258,13 +286,6 @@ export default function Donate() {
                     <Label htmlFor="one-time" className="flex-1 cursor-pointer">
                       <p className="font-semibold">{t("One-time Donation")}</p>
                       <p className="text-sm text-muted-foreground">{t("Make an immediate impact")}</p>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-4 rounded-lg border hover-elevate cursor-pointer">
-                    <RadioGroupItem value="monthly" id="monthly" data-testid="radio-monthly" />
-                    <Label htmlFor="monthly" className="flex-1 cursor-pointer">
-                      <p className="font-semibold">{t("Monthly Donation")}</p>
-                      <p className="text-sm text-muted-foreground">{t("Sustained support for ongoing needs")}</p>
                     </Label>
                   </div>
                 </RadioGroup>
@@ -368,12 +389,32 @@ export default function Donate() {
               <div>
                 <Label className="text-lg font-semibold mb-4 block">{t("Payment Method")}</Label>
                 <div className="space-y-3">
-                  <div className="p-4 rounded-lg border hover-elevate cursor-pointer">
+                  <button type="button" onClick={() => setPaymentMethod("chapa")} className={`w-full text-left p-4 rounded-lg border hover-elevate ${paymentMethod === "chapa" ? "border-primary bg-primary/5" : ""}`}>
                     <div className="flex items-center gap-3">
                       <CreditCard className="h-5 w-5" />
                       <span className="font-medium">{t("Pay with Chapa (Credit / Debit Card)")}</span>
                     </div>
-                  </div>
+                  </button>
+                  <button type="button" onClick={() => setPaymentMethod("telebirr")} className={`w-full text-left p-4 rounded-lg border hover-elevate ${paymentMethod === "telebirr" ? "border-primary bg-primary/5" : ""}`}>
+                    <div className="flex items-center gap-3"><span className="font-bold text-primary">T</span><span className="font-medium">{t("Telebirr — upload payment proof for review")}</span></div>
+                  </button>
+                  <button type="button" onClick={() => setPaymentMethod("other")} className={`w-full text-left p-4 rounded-lg border hover-elevate ${paymentMethod === "other" ? "border-primary bg-primary/5" : ""}`}>
+                    <div className="flex items-center gap-3"><span className="font-bold text-primary">+</span><span className="font-medium">{t("Other payment — upload receipt for review")}</span></div>
+                  </button>
+                  {paymentMethod !== "chapa" && (
+                    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                      <p className="text-sm text-muted-foreground">{t("Complete your transfer using the charity's payment instructions, then upload the receipt. The donation will appear in your profile and campaign total only after admin approval.")}</p>
+                      <div>
+                        <Label htmlFor="payment-reference">{t("Payment reference (optional)")}</Label>
+                        <Input id="payment-reference" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} maxLength={120} placeholder={t("Transaction/reference number")} />
+                      </div>
+                      <div>
+                        <Label htmlFor="payment-proof">{t("Payment screenshot or receipt")}</Label>
+                        <Input id="payment-proof" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setPaymentProof(event.target.files?.[0] || null)} />
+                        <p className="mt-1 text-xs text-muted-foreground">{t("JPG, PNG, WebP, or PDF; maximum 5 MB. Proof is private and only shown to you and admins.")}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

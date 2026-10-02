@@ -118,7 +118,14 @@ export default function DonorProfile() {
     retry: 1,
   });
 
+  const { data: manualPaymentData = [] } = useQuery({
+    queryKey: ["manual-payments", userId],
+    queryFn: () => apiRequest("GET", "/api/payments/manual/mine").then((response) => response.json()),
+    enabled: !!userId,
+  });
+
   const donations = donationsData as DonationRecord[];
+  const pendingManualPayments = manualPaymentData as any[];
 
   const campaignIds = Array.from(new Set(donations.map((donation) => donation.campaignId))).slice(0, 4);
   const { data: activeCampaignsData = [], isLoading: activeCampaignsLoading } = useQuery({
@@ -592,6 +599,23 @@ export default function DonorProfile() {
                       ))
                     )}
                   </div>
+                </Card>
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-4">{t("Manual payment submissions")}</h2>
+                  {pendingManualPayments.length === 0 ? <p className="text-muted-foreground">{t("No manual payment submissions yet.")}</p> : (
+                    <div className="space-y-3">
+                      {pendingManualPayments.map((payment: any) => (
+                        <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+                          <div>
+                            <p className="font-medium capitalize">{payment.payment_method} · {payment.amount} {t("currency.Birr")}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(payment.created_at).toLocaleString()}</p>
+                            {payment.review_note && <p className="mt-1 text-sm text-muted-foreground">{payment.review_note}</p>}
+                          </div>
+                          <Badge variant={payment.status === "approved" ? "default" : payment.status === "rejected" ? "destructive" : "secondary"} className="capitalize">{payment.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               </TabsContent>
 
