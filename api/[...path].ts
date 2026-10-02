@@ -576,6 +576,14 @@ function requireAdmin(req: Request, res: Response) {
   return true;
 }
 
+function getRequestOrigin(req: Request) {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`.replace(/\/$/, "");
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
+  return `${req.protocol}://${req.get("host") || "localhost"}`.replace(/\/$/, "");
+}
+
 export async function registerRoutes(app: Express, upload: any, privateUpload: any, manualPaymentUpload: any, privateUploadsDir: string): Promise<void> {
   app.get("/api/auth/config", (_req, res) => {
     res.setHeader("Cache-Control", "public, max-age=300");
@@ -586,17 +594,27 @@ export async function registerRoutes(app: Express, upload: any, privateUpload: a
   app.post("/api/login", async (req, res) => {
     const email = String(req.body.email || "").trim().toLowerCase();
     const password = String(req.body.password || "");
-    const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({ email, password });
-    if (authError || !authData.user || !authData.user.email_confirmed_at) {
-      return res.status(401).json({ error: authError?.message?.toLowerCase().includes("email not confirmed") ? "Please verify your email before signing in" : "Invalid email or password" });
-    }
     const user = await storage.getUserByEmail(email);
-    if (!user || user.blocked) {
-      return res.status(401).json({ error: "Invalid email or password" });
+
+    const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({ email, password }).catch((err) => ({ data: null, error: err }));
+    if (!authError && authData?.user && authData.user.email_confirmed_at) {
+      if (!user || user.blocked) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+      if (!user.verified) await storage.updateUser(user.id, { verified: true, verificationToken: null, verificationExpiresAt: null });
+      setAuthCookie(res, user.id);
+      return res.json({ user: publicUser({ ...user, verified: true }) });
     }
-    if (!user.verified) await storage.updateUser(user.id, { verified: true, verificationToken: null, verificationExpiresAt: null });
-    setAuthCookie(res, user.id);
-    return res.json({ user: publicUser({ ...user, verified: true }) });
+
+    if (user && !user.blocked) {
+      const validLegacyPassword = await bcrypt.compare(password, user.password);
+      if (validLegacyPassword) {
+        setAuthCookie(res, user.id);
+        return res.json({ user: publicUser(user) });
+      }
+    }
+
+    return res.status(401).json({ error: authError?.message?.toLowerCase().includes("email not confirmed") ? "Please verify your email before signing in" : "Invalid email or password" });
   });
 
   app.post("/api/logout", (req, res) => {
@@ -640,27 +658,44 @@ export async function registerRoutes(app: Express, upload: any, privateUpload: a
 
   app.post("/api/register", async (req, res) => {
     try {
-      const bearer = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-      if (!bearer) return res.status(401).json({ error: "A confirmed Supabase Auth session is required" });
-      const { data: authResult, error: authError } = await supabaseAuth.auth.getUser(bearer);
-      const authUser = authResult.user;
-      if (authError || !authUser?.email || !authUser.email_confirmed_at) return res.status(401).json({ error: "Confirm your email with Supabase before creating the profile" });
+      const email = String(req.body.email || "").trim().toLowerCase();
+      const password = String(req.body.password || "");
+      const username = String(req.body.username || email).trim();
+      const fullName = String(req.body.fullName || "").trim();
+      const role = ["donor", "volunteer", "beneficiary"].includes(String(req.body.role || "donor")) ? String(req.body.role || "donor") : "donor";
 
-      const existingUser = await storage.getUserByEmail(authUser.email);
-      if (existingUser) {
-        if (existingUser.authUserId === authUser.id) return res.status(200).json({ user: publicUser(existingUser), message: "Profile already exists" });
-        return res.status(409).json({ error: "An account profile already exists for this email" });
+      if (!email || !password || password.length < 8) {
+        return res.status(400).json({ error: "Provide a valid email and a password with at least 8 characters." });
       }
 
-      const metadata = authUser.user_metadata || {};
-      const roleFromMetadata = String(metadata.role || "donor");
-      const safeRole = ["donor", "volunteer", "beneficiary"].includes(roleFromMetadata) ? roleFromMetadata : "donor";
-      const username = String(metadata.username || authUser.email).slice(0, 255);
-      const fullName = String(metadata.full_name || "").slice(0, 255);
-      const hashedPassword = await bcrypt.hash(randomUUID(), 10);
-      const createdUser = await storage.createUser({ username, password: hashedPassword, email: authUser.email.toLowerCase(), fullName, role: safeRole });
-      const user = await storage.updateUser(createdUser.id, { authUserId: authUser.id, verified: true, verificationToken: null, verificationExpiresAt: null }) || createdUser;
-      return res.status(201).json({ user: publicUser(user), message: "Registration successful." });
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(409).json({ error: "An account already exists for this email." });
+      }
+
+      const authRedirect = `${getRequestOrigin(req)}/verify-email`;
+      const { data: signupData, error: signupError } = await supabaseAuth.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: authRedirect,
+          data: { username, full_name: fullName, role },
+        },
+      });
+
+      if (signupError) {
+        return res.status(400).json({ error: signupError.message });
+      }
+
+      const authUser = signupData?.user;
+      if (!authUser) {
+        return res.status(502).json({ error: "Supabase did not return the new user." });
+      }
+
+      const generatedPassword = await bcrypt.hash(password, 10);
+      const createdUser = await storage.createUser({ username: username || email, password: generatedPassword, email, fullName, role });
+      const user = await storage.updateUser(createdUser.id, { authUserId: authUser.id, verified: Boolean(authUser.email_confirmed_at), verificationToken: null, verificationExpiresAt: null }) || createdUser;
+      return res.status(201).json({ user: publicUser(user), message: "Registration successful. Check your email to verify your account." });
     } catch (error) {
       console.error("Profile creation failed", error);
       res.status(400).json({ error: "Invalid user data" });
@@ -675,8 +710,9 @@ export async function registerRoutes(app: Express, upload: any, privateUpload: a
     try {
       const email = String(req.body.email || "").trim().toLowerCase();
       if (!email) return res.status(400).json({ error: "Email is required" });
-      const { error: resendError } = await supabaseAuth.auth.resend({ type: "signup", email, options: { emailRedirectTo: `${(process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "")}/verify-email` } });
-      if (resendError) console.warn("Supabase verification resend was not accepted");
+      const redirectUrl = `${getRequestOrigin(req)}/verify-email`;
+      const { error: resendError } = await supabaseAuth.auth.resend({ type: "signup", email, options: { emailRedirectTo: redirectUrl } });
+      if (resendError) console.warn("Supabase verification resend was not accepted", resendError.message);
       res.json({ message: "If the account exists and is unverified, a verification email has been sent." });
     } catch (error) {
       res.status(500).json({ error: "Failed to resend verification" });
